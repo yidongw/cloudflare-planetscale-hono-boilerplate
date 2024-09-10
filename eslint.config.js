@@ -5,13 +5,7 @@ import vitest from 'eslint-plugin-vitest'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
-const defaultFiles = [
-  'src/**',
-  'tests/**',
-  'bindings.d.ts',
-  'scripts/**',
-  'migrations/**'
-]
+const defaultFiles = ['src/**', 'tests/**', 'bindings.d.ts', 'scripts/**', 'migrations/**']
 
 const config = {
   languageOptions: {
@@ -26,7 +20,7 @@ const config = {
       Request: 'readonly',
       addEventListener: 'readonly',
       ENV: 'readonly'
-    },
+    }
   },
   plugins: { 'import-x': importx },
   rules: {
@@ -36,7 +30,7 @@ const config = {
     'import-x/order': [
       'error',
       {
-        alphabetize: { order: 'asc' },
+        alphabetize: { order: 'asc' }
       }
     ],
     'node/no-missing-import': 'off',
@@ -56,9 +50,9 @@ const config = {
       {
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',
-        caughtErrorsIgnorePattern: '^_',
-      },
-    ],
+        caughtErrorsIgnorePattern: '^_'
+      }
+    ]
   },
   files: defaultFiles
 }
@@ -71,7 +65,7 @@ export const testConfig = {
 
 export default tseslint.config(
   {
-    ignores: ['dist/', 'coverage/', 'node_modules/'],
+    ignores: ['dist/', 'coverage/', 'node_modules/']
   },
   {
     files: defaultFiles,
@@ -85,4 +79,3 @@ export default tseslint.config(
     ...eslintPluginPrettierRecommended
   }
 )
-

@@ -5,10 +5,10 @@ import { faker } from '@faker-js/faker'
 import bcrypt from 'bcryptjs'
 import { env } from 'cloudflare:test'
 import dayjs from 'dayjs'
+import { eq } from 'drizzle-orm'
 import httpStatus from 'http-status'
 import { describe, expect, test, beforeEach } from 'vitest'
-import { getConfig } from '../../../src/config/config'
-import { getDBClient } from '../../../src/config/database'
+import { getConfig } from '../../../src/config'
 import { tokenTypes } from '../../../src/config/tokens'
 import * as tokenService from '../../../src/services/token.service'
 import { Register } from '../../../src/validations/auth.validation'
@@ -26,12 +26,14 @@ import { userOne, insertUsers, UserResponse, userTwo } from '../../fixtures/user
 import { expectExtension, mockClient } from '../../mocks/awsClientStub'
 import { clearDBTables } from '../../utils/clearDBTables'
 import { request } from '../../utils/testRequest'
+import db from '@/db'
+import { user } from '@/db/schemas/pg/user'
 
 const config = getConfig(env)
-const client = getDBClient(config.database)
+const client = db()
 
 expect.extend(expectExtension)
-clearDBTables(['user'], config.database)
+clearDBTables(['user'])
 
 describe('Auth routes', () => {
   describe('POST /v1/auth/register', () => {
@@ -58,14 +60,10 @@ describe('Auth routes', () => {
         name: newUser.name,
         email: newUser.email,
         role: 'user',
-        is_email_verified: 0
+        is_email_verified: false
       })
 
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', body.user.id)
-        .executeTakeFirst()
+      const [dbUser] = await client.select().from(user).where(eq(user.id, body.user.id))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
@@ -75,7 +73,7 @@ describe('Auth routes', () => {
         name: newUser.name,
         password: expect.anything(),
         email: newUser.email,
-        is_email_verified: 0,
+        is_email_verified: false,
         role: 'user'
       })
 
@@ -97,7 +95,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 400 error if email is already used', async () => {
-      await insertUsers([userOne], config.database)
+      await insertUsers([userOne])
       newUser.email = userOne.email
 
       const res = await request('/v1/auth/register', {
@@ -164,7 +162,7 @@ describe('Auth routes', () => {
 
   describe('POST /v1/auth/login', () => {
     test('should return 200 and login user if email and password match', async () => {
-      await insertUsers([userOne], config.database)
+      await insertUsers([userOne])
       const loginCredentials = {
         email: userOne.email,
         password: userOne.password
@@ -183,7 +181,7 @@ describe('Auth routes', () => {
         name: userOne.name,
         email: userOne.email,
         role: userOne.role,
-        is_email_verified: 0
+        is_email_verified: false
       })
 
       expect(body.tokens).toEqual({
@@ -213,10 +211,10 @@ describe('Auth routes', () => {
 
     test('should return 401 error if only oauth account exists', async () => {
       const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser], config.database)
+      const ids = await insertUsers([newUser])
       const userId = ids[0]
       const discordUser = discordAuthorisation(userId)
-      await insertAuthorisations([discordUser], config.database)
+      await insertAuthorisations([discordUser])
 
       const loginCredentials = {
         email: newUser.email,
@@ -237,7 +235,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 401 error if password is wrong', async () => {
-      await insertUsers([userOne], config.database)
+      await insertUsers([userOne])
       const loginCredentials = {
         email: userOne.email,
         password: 'wrongPassword1'
@@ -259,7 +257,7 @@ describe('Auth routes', () => {
 
   describe('POST /v1/auth/refresh-tokens', () => {
     test('should return 200 and new auth tokens if refresh token is valid', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const expires = dayjs().add(config.jwt.refreshExpirationDays, 'days')
       const refreshToken = await tokenService.generateToken(
@@ -295,7 +293,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 401 error if refresh token is signed using an invalid secret', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const expires = dayjs().add(config.jwt.refreshExpirationDays, 'days')
       const refreshToken = await tokenService.generateToken(
@@ -316,7 +314,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 401 error if refresh token is expired', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const expires = dayjs().subtract(1, 'minutes')
       const refreshToken = await tokenService.generateToken(
@@ -364,7 +362,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 204 and send reset password email to the user', async () => {
-      await insertUsers([userOne], config.database)
+      await insertUsers([userOne])
       sesMock.on(SendEmailCommand).resolves({
         MessageId: 'message-id'
       })
@@ -379,10 +377,10 @@ describe('Auth routes', () => {
 
     test('should return 204 and send email if only has oauth account', async () => {
       const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser], config.database)
+      const ids = await insertUsers([newUser])
       const userId = ids[0]
       const discordUser = discordAuthorisation(userId)
-      await insertAuthorisations([discordUser], config.database)
+      await insertAuthorisations([discordUser])
 
       sesMock.on(SendEmailCommand).resolves({
         MessageId: 'message-id'
@@ -397,7 +395,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 400 if email is missing', async () => {
-      await insertUsers([userOne], config.database)
+      await insertUsers([userOne])
 
       const res = await request('/v1/auth/forgot-password', {
         method: 'POST',
@@ -425,7 +423,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 204 and send verification email to the user', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
 
       sesMock.on(SendEmailCommand).resolves({
@@ -447,7 +445,7 @@ describe('Auth routes', () => {
     test('should return 204 and not send verification email if already verified', async () => {
       const newUser = { ...userOne }
       newUser.is_email_verified = true
-      const ids = await insertUsers([newUser], config.database)
+      const ids = await insertUsers([newUser])
       const newUserAccessToken = await getAccessToken(ids[0], newUser.role, config.jwt)
 
       sesMock.on(SendEmailCommand).resolves({
@@ -467,7 +465,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 429 if a second request is sent in under 2 minutes', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
 
       sesMock.on(SendEmailCommand).resolves({
@@ -497,7 +495,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 401 error if access token is missing', async () => {
-      await insertUsers([userOne], config.database)
+      await insertUsers([userOne])
 
       sesMock.on(SendEmailCommand).resolves({
         MessageId: 'message-id'
@@ -516,7 +514,7 @@ describe('Auth routes', () => {
 
   describe('POST /v1/auth/reset-password', () => {
     test('should return 204 and reset the password', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const newPassword = 'iamanewpassword123'
       const expires = dayjs().add(config.jwt.resetPasswordExpirationMinutes, 'minutes')
       const resetPasswordToken = await tokenService.generateToken(
@@ -535,11 +533,7 @@ describe('Auth routes', () => {
         }
       })
       expect(res.status).toBe(httpStatus.NO_CONTENT)
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', ids[0])
-        .executeTakeFirst()
+      const [dbUser] = await client.select().from(user).where(eq(user.id, ids[0]))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
@@ -560,7 +554,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 401 if reset password token is expired', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const newPassword = 'iamanewpassword123'
       const expires = dayjs().subtract(10, 'minutes')
       const resetPasswordToken = await tokenService.generateToken(
@@ -603,7 +597,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 400 if password is missing or invalid', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const expires = dayjs().add(config.jwt.resetPasswordExpirationMinutes, 'minutes')
       const resetPasswordToken = await tokenService.generateToken(
         ids[0],
@@ -653,7 +647,7 @@ describe('Auth routes', () => {
 
   describe('POST /v1/auth/verify-email', () => {
     test('should return 204 and verify the email', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const expires = dayjs().add(config.jwt.verifyEmailExpirationMinutes, 'minutes')
       const verifyEmailToken = await tokenService.generateToken(
         ids[0],
@@ -670,15 +664,12 @@ describe('Auth routes', () => {
         }
       })
       expect(res.status).toBe(httpStatus.NO_CONTENT)
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', ids[0])
-        .executeTakeFirst()
+
+      const [dbUser] = await client.select().from(user).where(eq(user.id, ids[0]))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
-      expect(dbUser.is_email_verified).toBe(1)
+      expect(dbUser.is_email_verified).toBe(true)
     })
 
     test('should return 400 if verify email token is missing', async () => {
@@ -692,7 +683,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 401 if verify email token is expired', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const expires = dayjs().subtract(10, 'minutes')
       const verifyEmailToken = await tokenService.generateToken(
         ids[0],
@@ -712,7 +703,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 401 if verify email token is an access token', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const expires = dayjs().add(10, 'minutes')
       const verifyEmailToken = await tokenService.generateToken(
         ids[0],
@@ -752,7 +743,7 @@ describe('Auth routes', () => {
   })
   describe('GET /v1/auth/authorisations', () => {
     test('should 200 and list of user authentication methods with local true', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const accessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const res = await request('/v1/auth/authorisations', {
         method: 'GET',
@@ -776,10 +767,10 @@ describe('Auth routes', () => {
     test('should 200 and list of user authentication methods with discord true', async () => {
       const user = { ...userOne }
       user.password = null
-      const ids = await insertUsers([user], config.database)
+      const ids = await insertUsers([user])
       const userOneId = ids[0]
       const discordAuth = discordAuthorisation(userOneId)
-      await insertAuthorisations([discordAuth], config.database)
+      await insertAuthorisations([discordAuth])
       const accessToken = await getAccessToken(ids[0], user.role, config.jwt)
       const res = await request('/v1/auth/authorisations', {
         method: 'GET',
@@ -800,7 +791,7 @@ describe('Auth routes', () => {
       })
     })
     test('should 200 and list of user authentication methods with all true', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneId = ids[0]
       const discordAuth = discordAuthorisation(userOneId)
       const spotifyAuth = spotifyAuthorisation(userOneId)
@@ -808,10 +799,14 @@ describe('Auth routes', () => {
       const githubAuth = githubAuthorisation(userOneId)
       const facebookAuth = facebookAuthorisation(userOneId)
       const appleAuth = appleAuthorisation(userOneId)
-      await insertAuthorisations(
-        [discordAuth, spotifyAuth, googleAuth, facebookAuth, githubAuth, appleAuth],
-        config.database
-      )
+      await insertAuthorisations([
+        discordAuth,
+        spotifyAuth,
+        googleAuth,
+        facebookAuth,
+        githubAuth,
+        appleAuth
+      ])
       const accessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const res = await request('/v1/auth/authorisations', {
         method: 'GET',
@@ -832,7 +827,7 @@ describe('Auth routes', () => {
       })
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,

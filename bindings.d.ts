@@ -10,10 +10,8 @@ type Environment = {
     JWT_REFRESH_EXPIRATION_DAYS: number
     JWT_RESET_PASSWORD_EXPIRATION_MINUTES: number
     JWT_VERIFY_EMAIL_EXPIRATION_MINUTES: number
-    DATABASE_NAME: string
-    DATABASE_USERNAME: string
-    DATABASE_PASSWORD: string
-    DATABASE_HOST: string
+    DATABASE_CLIENT_TYPE: string
+    DATABASE_URL: string
     RATE_LIMITER: DurableObjectNamespace<RateLimiter>
     SENTRY_DSN: string
     AWS_ACCESS_KEY_ID: string

@@ -1,10 +1,10 @@
 import { faker } from '@faker-js/faker'
 import { env, fetchMock } from 'cloudflare:test'
+import { eq, and } from 'drizzle-orm'
 import httpStatus from 'http-status'
 import { describe, expect, test, beforeAll, afterEach } from 'vitest'
+import { getConfig } from '../../../../src/config'
 import { authProviders } from '../../../../src/config/authProviders'
-import { getConfig } from '../../../../src/config/config'
-import { getDBClient } from '../../../../src/config/database'
 import { tokenTypes } from '../../../../src/config/tokens'
 import { SpotifyUserType } from '../../../../src/types/oauth.types'
 import {
@@ -17,13 +17,15 @@ import { getAccessToken, TokenResponse } from '../../../fixtures/token.fixture'
 import { userOne, insertUsers, UserResponse, userTwo } from '../../../fixtures/user.fixture'
 import { clearDBTables } from '../../../utils/clearDBTables'
 import { request } from '../../../utils/testRequest'
+import db from '@/db'
+import { authorisation } from '@/db/schemas/pg/authorisation'
+import { user } from '@/db/schemas/pg/user'
 
 const config = getConfig(env)
-const client = getDBClient(config.database)
+const client = db()
 const urlEncodedRedirectUrl = encodeURIComponent(config.oauth.spotify.redirectUrl)
 
-clearDBTables(['user', 'authorisations'], config.database)
-
+clearDBTables(['user', 'authorisation'])
 describe('Oauth Spotify routes', () => {
   describe('GET /v1/auth/spotify/redirect', () => {
     test('should return 302 and successfully redirect to spotify', async () => {
@@ -82,14 +84,10 @@ describe('Oauth Spotify routes', () => {
         name: newUser.display_name,
         email: newUser.email,
         role: 'user',
-        is_email_verified: 1
+        is_email_verified: true
       })
 
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', body.user.id)
-        .executeTakeFirst()
+      const [dbUser] = await client.select().from(user).where(eq(user.id, body.user.id))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
@@ -100,16 +98,19 @@ describe('Oauth Spotify routes', () => {
         password: null,
         email: newUser.email,
         role: 'user',
-        is_email_verified: 1
+        is_email_verified: true
       })
 
       const oauthUser = await client
-        .selectFrom('authorisations')
-        .selectAll()
-        .where('authorisations.provider_type', '=', authProviders.SPOTIFY)
-        .where('authorisations.user_id', '=', body.user.id)
-        .where('authorisations.provider_user_id', '=', String(newUser.id))
-        .executeTakeFirst()
+        .select()
+        .from(authorisation)
+        .where(
+          and(
+            eq(authorisation.provider_type, authProviders.SPOTIFY),
+            eq(authorisation.user_id, body.user.id),
+            eq(authorisation.provider_user_id, String(newUser.id))
+          )
+        )
 
       expect(oauthUser).toBeDefined()
       if (!oauthUser) return
@@ -121,10 +122,10 @@ describe('Oauth Spotify routes', () => {
     })
 
     test('should return 200 and successfully login user if already created', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const spotifyUser = spotifyAuthorisation(userId)
-      await insertAuthorisations([spotifyUser], config.database)
+      await insertAuthorisations([spotifyUser])
       newUser.id = spotifyUser.provider_user_id
       const providerId = '123456'
 
@@ -157,7 +158,7 @@ describe('Oauth Spotify routes', () => {
         name: userOne.name,
         email: userOne.email,
         role: userOne.role,
-        is_email_verified: 0
+        is_email_verified: false
       })
 
       expect(body.tokens).toEqual({
@@ -167,7 +168,7 @@ describe('Oauth Spotify routes', () => {
     })
 
     test('should return 403 if user exists but has not linked their spotify', async () => {
-      await insertUsers([userOne], config.database)
+      await insertUsers([userOne])
       newUser.email = userOne.email
       const providerId = '123456'
 
@@ -244,7 +245,7 @@ describe('Oauth Spotify routes', () => {
       }
     })
     test('should return 200 and successfully link spotify account', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const providerId = '123456'
@@ -273,11 +274,7 @@ describe('Oauth Spotify routes', () => {
       })
       expect(res.status).toBe(httpStatus.NO_CONTENT)
 
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', userId)
-        .executeTakeFirst()
+      const [dbUser] = await client.select().from(user).where(eq(user.id, userId))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
@@ -288,26 +285,29 @@ describe('Oauth Spotify routes', () => {
         password: expect.anything(),
         email: userOne.email,
         role: userOne.role,
-        is_email_verified: 0
+        is_email_verified: false
       })
 
       const oauthUser = await client
-        .selectFrom('authorisations')
-        .selectAll()
-        .where('authorisations.provider_type', '=', authProviders.SPOTIFY)
-        .where('authorisations.user_id', '=', userId)
-        .where('authorisations.provider_user_id', '=', String(newUser.id))
-        .executeTakeFirst()
+        .select()
+        .from(authorisation)
+        .where(
+          and(
+            eq(authorisation.provider_type, authProviders.SPOTIFY),
+            eq(authorisation.user_id, userId),
+            eq(authorisation.provider_user_id, String(newUser.id))
+          )
+        )
 
       expect(oauthUser).toBeDefined()
       if (!oauthUser) return
     })
 
     test('should return 401 if user does not exist when linking', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(userId, userOne.role, config.jwt)
-      await client.deleteFrom('user').where('user.id', '=', userId).execute()
+      await client.delete(user).where(eq(user.id, userId)).execute()
       const providerId = '123456'
 
       const spotifyApiMock = fetchMock.get('https://api.spotify.com')
@@ -335,18 +335,21 @@ describe('Oauth Spotify routes', () => {
       expect(res.status).toBe(httpStatus.UNAUTHORIZED)
 
       const oauthUser = await client
-        .selectFrom('authorisations')
-        .selectAll()
-        .where('authorisations.provider_type', '=', authProviders.SPOTIFY)
-        .where('authorisations.user_id', '=', userId)
-        .where('authorisations.provider_user_id', '=', String(newUser.id))
-        .executeTakeFirst()
+        .select()
+        .from(authorisation)
+        .where(
+          and(
+            eq(authorisation.provider_type, authProviders.SPOTIFY),
+            eq(authorisation.user_id, userId),
+            eq(authorisation.provider_user_id, String(newUser.id))
+          )
+        )
 
       expect(oauthUser).toBeUndefined()
     })
 
     test('should return 401 if code is invalid', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const providerId = '123456'
@@ -373,7 +376,7 @@ describe('Oauth Spotify routes', () => {
     })
 
     test('should return 403 if linking different user', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(userId, userOne.role, config.jwt)
 
@@ -390,7 +393,7 @@ describe('Oauth Spotify routes', () => {
     })
 
     test('should return 400 if no code provided', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
 
@@ -416,7 +419,7 @@ describe('Oauth Spotify routes', () => {
       expect(res.status).toBe(httpStatus.UNAUTHORIZED)
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,
@@ -439,11 +442,11 @@ describe('Oauth Spotify routes', () => {
 
   describe('DELETE /v1/auth/spotify/:userId', () => {
     test('should return 200 and successfully remove spotify account link', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const spotifyUser = spotifyAuthorisation(userId)
-      await insertAuthorisations([spotifyUser], config.database)
+      await insertAuthorisations([spotifyUser])
 
       const res = await request(`/v1/auth/spotify/${userId}`, {
         method: 'DELETE',
@@ -454,11 +457,14 @@ describe('Oauth Spotify routes', () => {
       expect(res.status).toBe(httpStatus.NO_CONTENT)
 
       const oauthUser = await client
-        .selectFrom('authorisations')
-        .selectAll()
-        .where('authorisations.provider_type', '=', authProviders.SPOTIFY)
-        .where('authorisations.user_id', '=', userId)
-        .executeTakeFirst()
+        .select()
+        .from(authorisation)
+        .where(
+          and(
+            eq(authorisation.provider_type, authProviders.SPOTIFY),
+            eq(authorisation.user_id, user.id)
+          )
+        )
 
       expect(oauthUser).toBeUndefined()
       if (!oauthUser) return
@@ -466,11 +472,11 @@ describe('Oauth Spotify routes', () => {
 
     test('should return 400 if user does not have a local login and only 1 link', async () => {
       const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser], config.database)
+      const ids = await insertUsers([newUser])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], newUser.role, config.jwt)
       const spotifyUser = spotifyAuthorisation(userId)
-      await insertAuthorisations([spotifyUser], config.database)
+      await insertAuthorisations([spotifyUser])
 
       const res = await request(`/v1/auth/spotify/${userId}`, {
         method: 'DELETE',
@@ -481,18 +487,21 @@ describe('Oauth Spotify routes', () => {
       expect(res.status).toBe(httpStatus.BAD_REQUEST)
 
       const oauthUser = await client
-        .selectFrom('authorisations')
-        .selectAll()
-        .where('authorisations.provider_type', '=', authProviders.SPOTIFY)
-        .where('authorisations.user_id', '=', userId)
-        .executeTakeFirst()
+        .select()
+        .from(authorisation)
+        .where(
+          and(
+            eq(authorisation.provider_type, authProviders.SPOTIFY),
+            eq(authorisation.user_id, userId)
+          )
+        )
 
       expect(oauthUser).toBeDefined()
     })
 
     test('should return 400 if user only has a local login', async () => {
       const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser], config.database)
+      const ids = await insertUsers([newUser])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], newUser.role, config.jwt)
 
@@ -507,13 +516,13 @@ describe('Oauth Spotify routes', () => {
 
     test('should return 400 if user does not have spotify link', async () => {
       const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser], config.database)
+      const ids = await insertUsers([newUser])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], newUser.role, config.jwt)
       const githubUser = githubAuthorisation(userId)
-      await insertAuthorisations([githubUser], config.database)
+      await insertAuthorisations([githubUser])
       const facebookUser = facebookAuthorisation(userId)
-      await insertAuthorisations([facebookUser], config.database)
+      await insertAuthorisations([facebookUser])
 
       const res = await request(`/v1/auth/spotify/${userId}`, {
         method: 'DELETE',
@@ -526,12 +535,12 @@ describe('Oauth Spotify routes', () => {
 
     test('should return 200 if user does not have a local login and 2 links', async () => {
       const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser], config.database)
+      const ids = await insertUsers([newUser])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(ids[0], newUser.role, config.jwt)
       const spotifyUser = spotifyAuthorisation(userId)
       const facebookUser = facebookAuthorisation(userId)
-      await insertAuthorisations([spotifyUser, facebookUser], config.database)
+      await insertAuthorisations([spotifyUser, facebookUser])
 
       const res = await request(`/v1/auth/spotify/${userId}`, {
         method: 'DELETE',
@@ -541,27 +550,33 @@ describe('Oauth Spotify routes', () => {
       })
       expect(res.status).toBe(httpStatus.NO_CONTENT)
 
-      const oauthSpotifyUser = await client
-        .selectFrom('authorisations')
-        .selectAll()
-        .where('authorisations.provider_type', '=', authProviders.SPOTIFY)
-        .where('authorisations.user_id', '=', userId)
-        .executeTakeFirst()
+      const [oauthSpotifyUser] = await client
+        .select()
+        .from(authorisation)
+        .where(
+          and(
+            eq(authorisation.provider_type, authProviders.SPOTIFY),
+            eq(authorisation.user_id, userId)
+          )
+        )
 
       expect(oauthSpotifyUser).toBeUndefined()
 
       const oauthFacebookUser = await client
-        .selectFrom('authorisations')
-        .selectAll()
-        .where('authorisations.provider_type', '=', authProviders.FACEBOOK)
-        .where('authorisations.user_id', '=', userId)
-        .executeTakeFirst()
+        .select()
+        .from(authorisation)
+        .where(
+          and(
+            eq(authorisation.provider_type, authProviders.FACEBOOK),
+            eq(authorisation.user_id, user.id)
+          )
+        )
 
       expect(oauthFacebookUser).toBeDefined()
     })
 
     test('should return 403 if unlinking different user', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userId = ids[0]
       const userOneAccessToken = await getAccessToken(userId, userOne.role, config.jwt)
 
@@ -585,7 +600,7 @@ describe('Oauth Spotify routes', () => {
       expect(res.status).toBe(httpStatus.UNAUTHORIZED)
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,

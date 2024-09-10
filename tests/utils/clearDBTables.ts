@@ -1,12 +1,19 @@
 import { beforeEach } from 'vitest'
-import { Config } from '../../src/config/config'
-import { getDBClient, Database } from '../../src/config/database'
+import db from '@/db'
+import { authorisation } from '@/db/schemas/pg/authorisation'
+import { user } from '@/db/schemas/pg/user'
 
-const clearDBTables = (tables: Array<keyof Database>, databaseConfig: Config['database']) => {
-  const client = getDBClient(databaseConfig)
+const tableMap = {
+  user: user,
+  authorisation: authorisation
+} as const
+
+type TableName = keyof typeof tableMap
+
+const clearDBTables = (tables: TableName[]) => {
   beforeEach(async () => {
     for (const table of tables) {
-      await client.deleteFrom(table).executeTakeFirst()
+      await db().delete(tableMap[table]).execute()
     }
   })
 }

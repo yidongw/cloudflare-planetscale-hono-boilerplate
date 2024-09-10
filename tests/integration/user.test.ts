@@ -1,20 +1,22 @@
 import { faker } from '@faker-js/faker'
 import { env } from 'cloudflare:test'
+import { eq } from 'drizzle-orm'
 import httpStatus from 'http-status'
 import { test, describe, expect, beforeEach } from 'vitest'
-import { getConfig } from '../../src/config/config'
-import { getDBClient } from '../../src/config/database'
+import { getConfig } from '../../src/config'
 import { tokenTypes } from '../../src/config/tokens'
 import { getAccessToken } from '../fixtures/token.fixture'
 import { MockUser, UserResponse } from '../fixtures/user.fixture'
 import { userOne, userTwo, admin, insertUsers } from '../fixtures/user.fixture'
 import { clearDBTables } from '../utils/clearDBTables'
 import { request } from '../utils/testRequest'
+import db from '@/db'
+import { user } from '@/db/schemas/pg/user'
 
 const config = getConfig(env)
-const client = getDBClient(config.database)
+const client = db()
 
-clearDBTables(['user'], config.database)
+clearDBTables(['user'])
 
 describe('User routes', () => {
   describe('POST /v1/users', () => {
@@ -31,7 +33,7 @@ describe('User routes', () => {
     })
 
     test('should return 201 and successfully create new user if data is ok', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
         method: 'POST',
@@ -49,14 +51,10 @@ describe('User routes', () => {
         name: newUser.name,
         email: newUser.email,
         role: 'user',
-        is_email_verified: 0
+        is_email_verified: false
       })
 
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', body.id)
-        .executeTakeFirst()
+      const [dbUser] = await client.select().from(user).where(eq(user.id, body.id))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
@@ -67,12 +65,12 @@ describe('User routes', () => {
         password: expect.anything(),
         email: newUser.email,
         role: 'user',
-        is_email_verified: 0
+        is_email_verified: false
       })
     })
 
     test('should be able to create an admin as well', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       newUser.role = 'admin'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
@@ -87,11 +85,7 @@ describe('User routes', () => {
       expect(res.status).toBe(httpStatus.CREATED)
       expect(body.role).toBe('admin')
 
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', body.id)
-        .executeTakeFirst()
+      const [dbUser] = await client.select().from(user).where(eq(user.id, body.id))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
@@ -112,7 +106,7 @@ describe('User routes', () => {
     })
 
     test('should return 403 error if logged in user is not admin', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
 
       const res = await request('/v1/users', {
@@ -127,7 +121,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 error if email is invalid', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       newUser.email = 'invalidEmail'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
@@ -142,7 +136,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 error if email is already used', async () => {
-      const ids = await insertUsers([admin, userOne], config.database)
+      const ids = await insertUsers([admin, userOne])
       newUser.email = userOne.email
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
@@ -157,7 +151,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 error if password length is less than 8 characters', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       newUser.password = 'passwo1'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
@@ -172,7 +166,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 if password does not contain both letters and numbers', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       newUser.password = 'password'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
@@ -199,7 +193,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 error if role is neither user nor admin', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
         method: 'POST',
@@ -216,7 +210,7 @@ describe('User routes', () => {
     })
 
     test('should return 201 and is_email_verified false if set to true', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       newUser.is_email_verified = true
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users', {
@@ -229,10 +223,10 @@ describe('User routes', () => {
       })
       expect(res.status).toBe(httpStatus.CREATED)
       const body = await res.json<UserResponse>()
-      expect(body.is_email_verified).toBe(0)
+      expect(body.is_email_verified).toBe(false)
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,
@@ -255,7 +249,7 @@ describe('User routes', () => {
 
   describe('GET /v1/users', () => {
     test('should return 200 and apply the default query options', async () => {
-      const ids = await insertUsers([userOne, userTwo, admin], config.database)
+      const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
       const res = await request('/v1/users', {
         method: 'GET',
@@ -272,12 +266,12 @@ describe('User routes', () => {
         name: userOne.name,
         email: userOne.email,
         role: userOne.role,
-        is_email_verified: 0
+        is_email_verified: false
       })
     })
 
     test('should return 401 if access token is missing', async () => {
-      await insertUsers([userOne, userTwo, admin], config.database)
+      await insertUsers([userOne, userTwo, admin])
       const res = await request('/v1/users', {
         method: 'GET',
         headers: {
@@ -288,7 +282,7 @@ describe('User routes', () => {
     })
 
     test('should return 403 if a non-admin is trying to access all users', async () => {
-      const ids = await insertUsers([userOne, userTwo, admin], config.database)
+      const ids = await insertUsers([userOne, userTwo, admin])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const res = await request('/v1/users', {
         method: 'GET',
@@ -301,7 +295,7 @@ describe('User routes', () => {
     })
 
     test('should correctly apply filter on email field', async () => {
-      const ids = await insertUsers([userOne, userTwo, admin], config.database)
+      const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
       const res = await request(`/v1/users?email=${userOne.email}`, {
         method: 'GET',
@@ -317,7 +311,7 @@ describe('User routes', () => {
     })
 
     test('should correctly sort the returned array if desc sort param is specified', async () => {
-      const ids = await insertUsers([userOne, userTwo, admin], config.database)
+      const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
       const res = await request('/v1/users?sort_by=id:desc', {
         method: 'GET',
@@ -335,7 +329,7 @@ describe('User routes', () => {
     })
 
     test('should correctly sort the returned array if asc sort param is specified', async () => {
-      const ids = await insertUsers([userOne, userTwo, admin], config.database)
+      const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
       const res = await request('/v1/users?sort_by=id:asc', {
         method: 'GET',
@@ -353,7 +347,7 @@ describe('User routes', () => {
     })
 
     test('should limit returned array if limit param is specified', async () => {
-      const ids = await insertUsers([userOne, userTwo, admin], config.database)
+      const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
       const res = await request('/v1/users?limit=2', {
         method: 'GET',
@@ -370,7 +364,7 @@ describe('User routes', () => {
     })
 
     test('should return the correct page if page and limit params are specified', async () => {
-      const ids = await insertUsers([userOne, userTwo, admin], config.database)
+      const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
       const res = await request('/v1/users?limit=2&page=1', {
         method: 'GET',
@@ -385,7 +379,7 @@ describe('User routes', () => {
       expect(body[0].id).toBe(ids[2])
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,
@@ -407,7 +401,7 @@ describe('User routes', () => {
 
   describe('GET /v1/users/:userId', () => {
     test('should return 200 and the user object if data is ok', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const res = await request(`/v1/users/${ids[0]}`, {
         method: 'GET',
@@ -424,12 +418,12 @@ describe('User routes', () => {
         name: userOne.name,
         email: userOne.email,
         role: userOne.role,
-        is_email_verified: 0
+        is_email_verified: false
       })
     })
 
     test('should return 401 error if access token is missing', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const res = await request(`/v1/users/${ids[0]}`, {
         method: 'GET',
         headers: {
@@ -440,7 +434,7 @@ describe('User routes', () => {
     })
 
     test('should return 403 error if user is trying to get another user', async () => {
-      const ids = await insertUsers([userOne, userTwo], config.database)
+      const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const res = await request(`/v1/users/${ids[1]}`, {
         method: 'GET',
@@ -453,7 +447,7 @@ describe('User routes', () => {
     })
 
     test('should return 200 and user if admin is trying to get another user', async () => {
-      const ids = await insertUsers([userOne, admin], config.database)
+      const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
       const res = await request(`/v1/users/${ids[0]}`, {
         method: 'GET',
@@ -466,7 +460,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 error if userId is not a number', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users/hello1234', {
         method: 'GET',
@@ -479,7 +473,7 @@ describe('User routes', () => {
     })
 
     test('should return 404 error if user is not found', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users/1221212', {
         method: 'GET',
@@ -491,7 +485,7 @@ describe('User routes', () => {
       expect(res.status).toBe(httpStatus.NOT_FOUND)
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,
@@ -513,7 +507,7 @@ describe('User routes', () => {
 
   describe('DELETE /v1/users/:userId', () => {
     test('should return 204 if data is ok', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const res = await request(`/v1/users/${ids[0]}`, {
         method: 'DELETE',
@@ -523,16 +517,14 @@ describe('User routes', () => {
         }
       })
       expect(res.status).toBe(httpStatus.NO_CONTENT)
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', ids[0])
-        .executeTakeFirst()
+
+      const [dbUser] = await client.select().from(user).where(eq(user.id, ids[0]))
+
       expect(dbUser).toBe(undefined)
     })
 
     test('should return 401 error if access token is missing', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const res = await request(`/v1/users/${ids[0]}`, {
         method: 'DELETE',
         headers: {
@@ -543,7 +535,7 @@ describe('User routes', () => {
     })
 
     test('should return 403 error if user is trying to delete another user', async () => {
-      const ids = await insertUsers([userOne, userTwo], config.database)
+      const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const res = await request(`/v1/users/${ids[1]}`, {
         method: 'DELETE',
@@ -556,7 +548,7 @@ describe('User routes', () => {
     })
 
     test('should return 204 if admin is trying to delete another user', async () => {
-      const ids = await insertUsers([userOne, admin], config.database)
+      const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
       const res = await request(`/v1/users/${ids[0]}`, {
         method: 'DELETE',
@@ -569,7 +561,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 error if userId is not a number', async () => {
-      const ids = await insertUsers([userOne, admin], config.database)
+      const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
       const res = await request('/v1/users/iamnotanumber', {
         method: 'DELETE',
@@ -582,7 +574,7 @@ describe('User routes', () => {
     })
 
     test('should return 404 error if user already is not found', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const res = await request('/v1/users/12345', {
         method: 'DELETE',
@@ -594,7 +586,7 @@ describe('User routes', () => {
       expect(res.status).toBe(httpStatus.NOT_FOUND)
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,
@@ -616,7 +608,7 @@ describe('User routes', () => {
 
   describe('PATCH /v1/users/:userId', () => {
     test('should return 200 and successfully update user if data is ok', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = {
         name: faker.person.fullName(),
@@ -639,14 +631,10 @@ describe('User routes', () => {
         name: updateBody.name,
         email: updateBody.email,
         role: 'user',
-        is_email_verified: 0
+        is_email_verified: false
       })
 
-      const dbUser = await client
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', body.id)
-        .executeTakeFirst()
+      const [dbUser] = await client.select().from(user).where(eq(user.id, body.id))
 
       expect(dbUser).toBeDefined()
       if (!dbUser) return
@@ -657,12 +645,12 @@ describe('User routes', () => {
         password: expect.anything(),
         email: updateBody.email,
         role: 'user',
-        is_email_verified: 0
+        is_email_verified: false
       })
     })
 
     test('should return 401 error if access token is missing', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const updateBody = { name: faker.person.fullName() }
       const res = await request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
@@ -675,7 +663,7 @@ describe('User routes', () => {
     })
 
     test('should return 403 if user is updating another user', async () => {
-      const ids = await insertUsers([userOne, userTwo], config.database)
+      const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
       const res = await request(`/v1/users/${ids[1]}`, {
@@ -690,7 +678,7 @@ describe('User routes', () => {
     })
 
     test('should return 200 and update user if admin is updating another user', async () => {
-      const ids = await insertUsers([userOne, admin], config.database)
+      const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
       const res = await request(`/v1/users/${ids[0]}`, {
@@ -705,7 +693,7 @@ describe('User routes', () => {
     })
 
     test('should return 404 if admin is updating another user that is not found', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
       const res = await request('/v1/users/123123222', {
@@ -720,7 +708,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 error if userId is not a number', async () => {
-      const ids = await insertUsers([admin], config.database)
+      const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
       const res = await request('/v1/users/notanumber123', {
@@ -735,7 +723,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 if email is invalid', async () => {
-      const ids = await insertUsers([userOne, admin], config.database)
+      const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
       const updateBody = { email: 'invalidEmail' }
       const res = await request(`/v1/users/${ids[0]}`, {
@@ -750,7 +738,7 @@ describe('User routes', () => {
     })
 
     test('should return 400 if email is already taken', async () => {
-      const ids = await insertUsers([userOne, userTwo], config.database)
+      const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = { email: userTwo.email }
       const res = await request(`/v1/users/${ids[0]}`, {
@@ -765,7 +753,7 @@ describe('User routes', () => {
     })
 
     test('should not return 400 if email is my email', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = { email: userOne.email }
       const res = await request(`/v1/users/${ids[0]}`, {
@@ -779,7 +767,7 @@ describe('User routes', () => {
       expect(res.status).toBe(httpStatus.OK)
     })
     test('should return 400 if one of email/password/role are not passed in', async () => {
-      const ids = await insertUsers([userOne], config.database)
+      const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = {}
       const res = await request(`/v1/users/${ids[0]}`, {
@@ -793,7 +781,7 @@ describe('User routes', () => {
       expect(res.status).toBe(httpStatus.BAD_REQUEST)
     })
     test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo], config.database)
+      const ids = await insertUsers([userTwo])
       const userId = ids[0]
       const accessToken = await getAccessToken(
         userId,

@@ -1,9 +1,7 @@
 import { faker } from '@faker-js/faker'
-import { Insertable } from 'kysely'
 import { authProviders } from '../../src/config/authProviders'
-import { Config } from '../../src/config/config'
-import { getDBClient } from '../../src/config/database'
-import { AuthProviderTable } from '../../src/models/authProvider.model'
+import db from '@/db'
+import { authorisation } from '@/db/schemas/pg/authorisation'
 
 export const githubAuthorisation = (userId: number) => ({
   provider_type: authProviders.GITHUB,
@@ -42,11 +40,9 @@ export const appleAuthorisation = (userId: number) => ({
 })
 
 export const insertAuthorisations = async (
-  authorisations: Insertable<AuthProviderTable>[],
-  databaseConfig: Config['database']
+  authorisationsData: (typeof authorisation.$inferInsert)[]
 ) => {
-  const client = getDBClient(databaseConfig)
-  for await (const authorisation of authorisations) {
-    await client.insertInto('authorisations').values(authorisation).executeTakeFirst()
+  for (const authData of authorisationsData) {
+    await db().insert(authorisation).values(authData)
   }
 }

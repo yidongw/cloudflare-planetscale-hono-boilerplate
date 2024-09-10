@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
-import { Generated, Selectable } from 'kysely'
-import { Role } from '../config/roles'
+import { type Generated, type Selectable } from 'kysely'
+import { type Role } from '../config/roles'
 import { BaseModel } from './base.model'
 
 export interface UserTable {
@@ -38,7 +38,7 @@ export class User extends BaseModel implements Selectable<UserTable> {
     return await bcrypt.compare(userPassword, this.password)
   }
 
-  canAccessPrivateFields(): boolean {
+  override canAccessPrivateFields(): boolean {
     return this.role === 'admin'
   }
 }

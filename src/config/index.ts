@@ -1,19 +1,17 @@
+import process from 'node:process'
 import httpStatus from 'http-status'
 import { ZodError, z } from 'zod'
-import { Environment } from '../../bindings'
+import { type Environment } from '../../bindings'
 import { ApiError } from '../utils/ApiError'
 import { generateZodErrorMessage } from '../utils/zod'
 
 const envVarsSchema = z.object({
   ENV: z.union([z.literal('production'), z.literal('development'), z.literal('test')]),
-  // MYSQL Database name
-  DATABASE_NAME: z.string(),
-  // MYSQL Database username
-  DATABASE_USERNAME: z.string(),
-  // MYSQL Database password
-  DATABASE_PASSWORD: z.string(),
-  // MYSQL Database host
-  DATABASE_HOST: z.string(),
+  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
+  // Database Client Type
+  DATABASE_CLIENT_TYPE: z.string(),
+  // Database URL
+  DATABASE_URL: z.string(),
   // JWT secret key
   JWT_SECRET: z.string(),
   // Minutes after which access tokens expire
@@ -51,12 +49,11 @@ export type EnvVarsSchemaType = z.infer<typeof envVarsSchema>
 
 export interface Config {
   env: 'production' | 'development' | 'test'
-  database: {
-    name: string
-    username: string
-    password: string
-    host: string
-  }
+  isDev: boolean
+  isProd: boolean
+  logLevel: string
+  databaseClientType: string
+  databaseUrl: string
   jwt: {
     secret: string
     accessExpirationMinutes: number
@@ -105,12 +102,13 @@ export interface Config {
   }
 }
 
-let config: Config
+let cachedConfig: Config
 
-export const getConfig = (env: Environment['Bindings']) => {
-  if (config) {
-    return config
+export const getConfig = (env: Environment['Bindings']): Config => {
+  if (cachedConfig) {
+    return cachedConfig
   }
+
   let envVars: EnvVarsSchemaType
   try {
     envVars = envVarsSchema.parse(env)
@@ -124,14 +122,13 @@ export const getConfig = (env: Environment['Bindings']) => {
     }
     throw err
   }
-  config = {
+  const config = {
     env: envVars.ENV,
-    database: {
-      name: envVars.DATABASE_NAME,
-      username: envVars.DATABASE_USERNAME,
-      password: envVars.DATABASE_PASSWORD,
-      host: envVars.DATABASE_HOST
-    },
+    isDev: envVars.ENV === 'development',
+    isProd: envVars.ENV === 'production',
+    logLevel: envVars.LOG_LEVEL,
+    databaseClientType: envVars.DATABASE_CLIENT_TYPE,
+    databaseUrl: envVars.DATABASE_URL,
     jwt: {
       secret: envVars.JWT_SECRET,
       accessExpirationMinutes: envVars.JWT_ACCESS_EXPIRATION_MINUTES,
@@ -181,3 +178,5 @@ export const getConfig = (env: Environment['Bindings']) => {
   }
   return config
 }
+
+export const config = () => getConfig(process.env as unknown as Environment['Bindings'])

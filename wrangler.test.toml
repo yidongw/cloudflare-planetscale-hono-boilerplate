@@ -1,9 +1,10 @@
 name = 'cf-workers-hono-planetscale-app'
-main = 'dist/index.mjs'
+main = 'src/index.ts'
 
 workers_dev = true
 compatibility_date = '2024-08-21'
 compatibility_flags = [ "nodejs_compat" ]
+
 account_id=''
 
 [durable_objects]
@@ -20,11 +21,12 @@ kv_persist = false
 env_path = '.env.test'
 
 [vars]
-ENV = 'development'
+ENV = 'test'
 JWT_ACCESS_EXPIRATION_MINUTES=30
 JWT_REFRESH_EXPIRATION_DAYS=30
 JWT_RESET_PASSWORD_EXPIRATION_MINUTES=15
 JWT_VERIFY_EMAIL_EXPIRATION_MINUTES=15
+
 AWS_REGION='eu-west-1'
 EMAIL_SENDER='noreply@gmail.com'
 OAUTH_GITHUB_CLIENT_ID='myclientid'
@@ -38,7 +40,21 @@ OAUTH_FACEBOOK_CLIENT_ID='myclientid'
 OAUTH_FACEBOOK_REDIRECT_URL='https://frontend.com/login'
 OAUTH_APPLE_CLIENT_ID='myclientid'
 OAUTH_APPLE_REDIRECT_URL='https://frontend.com/login'
-DATABASE_CLIENT_TYPE='neon'
+
+JWT_SECRET='myjwtsecret'
+
+DATABASE_CLIENT_TYPE='postgres'
+DATABASE_URL='postgresql://postgres:password@localhost:5432/test'
+
+AWS_ACCESS_KEY_ID='myawsaccesskeyid'
+AWS_SECRET_ACCESS_KEY='myawssecretaccesskey'
+SENTRY_DSN='mysentrydsn'
+OAUTH_GITHUB_CLIENT_SECRET='mygithubclientsecret'
+OAUTH_DISCORD_CLIENT_SECRET='mydiscordclientsecret' 
+OAUTH_SPOTIFY_CLIENT_SECRET='myspotifyclientsecret'
+OAUTH_GOOGLE_CLIENT_SECRET='mygoogleclientsecret'
+OAUTH_FACEBOOK_CLIENT_SECRET='myfacebookclientsecret'
+OAUTH_APPLE_CLIENT_SECRET='myappleclientsecret'
 
 # [secrets]
 # JWT_SECRET

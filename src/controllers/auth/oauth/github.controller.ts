@@ -2,8 +2,8 @@ import { Handler } from 'hono'
 import httpStatus from 'http-status'
 import { github } from 'worker-auth-providers'
 import { Environment } from '../../../../bindings'
+import { getConfig } from '../../../config'
 import { authProviders } from '../../../config/authProviders'
-import { getConfig } from '../../../config/config'
 import { oauthCallback, oauthLink, deleteOauthLink, validateCallbackBody } from './oauth.controller'
 
 export const githubRedirect: Handler<Environment> = async (c) => {

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { Environment } from '../../bindings'
+import { type Environment } from '../../bindings'
 import * as userController from '../controllers/user.controller'
 import { auth } from '../middlewares/auth'
 

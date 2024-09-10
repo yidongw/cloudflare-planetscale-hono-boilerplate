@@ -1,4 +1,4 @@
-import { AuthProviderType, OAuthUserType } from '../../types/oauth.types'
+import { type AuthProviderType, type OAuthUserType } from '../../types/oauth.types'
 import { BaseModel } from '../base.model'
 
 export interface AuthProviderTable {

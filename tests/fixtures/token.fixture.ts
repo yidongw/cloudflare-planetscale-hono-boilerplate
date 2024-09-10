@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { Config } from '../../src/config/config'
+import { Config } from '../../src/config'
 import { Role } from '../../src/config/roles'
 import { tokenTypes, TokenType } from '../../src/config/tokens'
 import * as tokenService from '../../src/services/token.service'

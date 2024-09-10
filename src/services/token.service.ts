@@ -1,9 +1,9 @@
-import jwt, { JwtPayload } from '@tsndr/cloudflare-worker-jwt'
+import jwt, { type JwtPayload } from '@tsndr/cloudflare-worker-jwt'
 import dayjs, { Dayjs } from 'dayjs'
-import { Selectable } from 'kysely'
-import { Config } from '../config/config'
-import { Role } from '../config/roles'
-import { TokenType, tokenTypes } from '../config/tokens'
+import { type Selectable } from 'kysely'
+import { type Config } from '../config'
+import { type Role } from '../config/roles'
+import { type TokenType, tokenTypes } from '../config/tokens'
 import { User } from '../models/user.model'
 
 export const generateToken = async (

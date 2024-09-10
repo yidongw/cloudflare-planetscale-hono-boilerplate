@@ -1,5 +1,5 @@
-import { SESClient, SendEmailCommand, Message } from '@aws-sdk/client-ses'
-import { Config } from '../config/config'
+import { SESClient, SendEmailCommand, type Message } from '@aws-sdk/client-ses'
+import { type Config } from '../config'
 
 let client: SESClient
 

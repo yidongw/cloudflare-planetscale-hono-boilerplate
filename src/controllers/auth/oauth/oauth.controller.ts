@@ -1,7 +1,7 @@
 import { Context } from 'hono'
 import httpStatus from 'http-status'
 import { Environment } from '../../../../bindings'
-import { getConfig } from '../../../config/config'
+import { getConfig } from '../../../config'
 import { providerUserFactory } from '../../../factories/oauth.factory'
 import { OAuthUserModel } from '../../../models/oauth/oauthBase.model'
 import * as authService from '../../../services/auth.service'
@@ -24,7 +24,7 @@ export const oauthCallback = async <T extends AuthProviderType>(
   } catch {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized')
   }
-  const user = await authService.loginOrCreateUserWithOauth(providerUser, config.database)
+  const user = await authService.loginOrCreateUserWithOauth(providerUser)
   const tokens = await tokenService.generateAuthTokens(user, config.jwt)
   return c.json({ user, tokens }, httpStatus.OK)
 }
@@ -36,7 +36,6 @@ export const oauthLink = async <T extends AuthProviderType>(
 ): Promise<Response> => {
   const payload = c.get('payload')
   const userId = Number(payload.sub)
-  const config = getConfig(c.env)
   let providerUser: OAuthUserModel
   try {
     const result = await oauthRequest
@@ -45,7 +44,7 @@ export const oauthLink = async <T extends AuthProviderType>(
   } catch {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Unauthorized')
   }
-  await authService.linkUserWithOauth(userId, providerUser, config.database)
+  await authService.linkUserWithOauth(userId, providerUser)
   c.status(httpStatus.NO_CONTENT)
   return c.body(null)
 }
@@ -56,8 +55,7 @@ export const deleteOauthLink = async (
 ): Promise<Response> => {
   const payload = c.get('payload')
   const userId = Number(payload.sub)
-  const config = getConfig(c.env)
-  await authService.deleteOauthLink(userId, provider, config.database)
+  await authService.deleteOauthLink(userId, provider)
   c.status(httpStatus.NO_CONTENT)
   return c.body(null)
 }

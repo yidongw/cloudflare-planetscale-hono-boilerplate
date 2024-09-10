@@ -1,11 +1,12 @@
 ### Todo
 
+- [ ] CI/CD using Github Actions
+- [ ] Use Bun instead
 - [ ] Flesh out README
 - [ ] Oauth
   - [ ] Add support for Twitter
 - [ ] API docs
 - [ ] Fix all types
-- [ ] CI/CD using Github Actions
 - [ ] MFA
 - [ ] 100% test coverage
 - [ ] Unit tests

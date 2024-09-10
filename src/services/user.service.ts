@@ -1,12 +1,14 @@
+import { eq, and, sql } from 'drizzle-orm'
+import { asc, desc } from 'drizzle-orm'
 import httpStatus from 'http-status'
-import { InsertResult, UpdateResult } from 'kysely'
-import { Config } from '../config/config'
-import { getDBClient } from '../config/database'
 import { OAuthUserModel } from '../models/oauth/oauthBase.model'
-import { User, UserTable } from '../models/user.model'
-import { AuthProviderType } from '../types/oauth.types'
+import { User, type UserTable } from '../models/user.model'
+import { type AuthProviderType } from '../types/oauth.types'
 import { ApiError } from '../utils/ApiError'
-import { CreateUser, UpdateUser } from '../validations/user.validation'
+import { type CreateUser, type UpdateUser } from '../validations/user.validation'
+import db from '@/db'
+import { authorisation as authorisations } from '@/db/schemas/pg/authorisation'
+import { user as users } from '@/db/schemas/pg/user'
 
 interface getUsersFilter {
   email: string | undefined
@@ -18,30 +20,21 @@ interface getUsersOptions {
   page: number
 }
 
-export const createUser = async (
-  userBody: CreateUser,
-  databaseConfig: Config['database']
-): Promise<User> => {
-  const db = getDBClient(databaseConfig)
-  let result: InsertResult
+export const createUser = async (userBody: CreateUser): Promise<User> => {
   try {
-    result = await db.insertInto('user').values(userBody).executeTakeFirstOrThrow()
+    const [result] = await db().insert(users).values(userBody).returning()
+    const user = await getUserById(result.id)
+    return user!
   } catch {
     throw new ApiError(httpStatus.BAD_REQUEST, 'User already exists')
   }
-  const user = (await getUserById(Number(result.insertId), databaseConfig)) as User
-  return user
 }
 
-export const createOauthUser = async (
-  providerUser: OAuthUserModel,
-  databaseConfig: Config['database']
-): Promise<User> => {
-  const db = getDBClient(databaseConfig)
+export const createOauthUser = async (providerUser: OAuthUserModel): Promise<User> => {
   try {
-    await db.transaction().execute(async (trx) => {
-      const userId = await trx
-        .insertInto('user')
+    await db().transaction(async (tx) => {
+      const [user] = await tx
+        .insert(users)
         .values({
           name: providerUser._name,
           email: providerUser._email,
@@ -49,138 +42,112 @@ export const createOauthUser = async (
           password: null,
           role: 'user'
         })
-        .executeTakeFirstOrThrow()
-      await trx
-        .insertInto('authorisations')
-        .values({
-          user_id: Number(userId.insertId),
-          provider_type: providerUser.providerType,
-          provider_user_id: providerUser._id
-        })
-        .executeTakeFirstOrThrow()
-      return userId
+        .returning({ id: users.id })
+
+      await tx.insert(authorisations).values({
+        user_id: user.id,
+        provider_type: providerUser.providerType,
+        provider_user_id: providerUser._id
+      })
+
+      return [user]
     })
+
+    const user = await getUserByProviderIdType(providerUser._id, providerUser.providerType)
+    return new User(user as User)
   } catch {
     throw new ApiError(
       httpStatus.FORBIDDEN,
       `Cannot signup with ${providerUser.providerType}, user already exists with that email`
     )
   }
-  const user = (await getUserByProviderIdType(
-    providerUser._id,
-    providerUser.providerType,
-    databaseConfig
-  )) as User
-  return new User(user)
 }
 
 export const queryUsers = async (
   filter: getUsersFilter,
-  options: getUsersOptions,
-  databaseConfig: Config['database']
+  options: getUsersOptions
 ): Promise<User[]> => {
-  const db = getDBClient(databaseConfig)
   const [sortField, direction] = options.sortBy.split(':') as [keyof UserTable, 'asc' | 'desc']
-  let usersQuery = db
-    .selectFrom('user')
-    .selectAll()
-    .orderBy(`user.${sortField}`, direction)
+  let query
+  query = db()
+    .select()
+    .from(users)
+    .orderBy(direction === 'asc' ? asc(sql.identifier(sortField)) : desc(sql.identifier(sortField)))
     .limit(options.limit)
     .offset(options.limit * options.page)
+
   if (filter.email) {
-    usersQuery = usersQuery.where('user.email', '=', filter.email)
+    query = query.where(eq(users.email, filter.email))
   }
-  const users = await usersQuery.execute()
-  return users.map((user) => new User(user))
+
+  const result = await query
+  return result.map((user) => new User(user))
 }
 
-export const getUserById = async (
-  id: number,
-  databaseConfig: Config['database']
-): Promise<User | undefined> => {
-  const db = getDBClient(databaseConfig)
-  const user = await db.selectFrom('user').selectAll().where('user.id', '=', id).executeTakeFirst()
+export const getUserById = async (id: number): Promise<User | undefined> => {
+  const [user] = await db().select().from(users).where(eq(users.id, id))
   return user ? new User(user) : undefined
 }
 
-export const getUserByEmail = async (
-  email: string,
-  databaseConfig: Config['database']
-): Promise<User | undefined> => {
-  const db = getDBClient(databaseConfig)
-  const user = await db
-    .selectFrom('user')
-    .selectAll()
-    .where('user.email', '=', email)
-    .executeTakeFirst()
+export const getUserByEmail = async (email: string): Promise<User | undefined> => {
+  const [user] = await db().select().from(users).where(eq(users.email, email))
   return user ? new User(user) : undefined
 }
 
 export const getUserByProviderIdType = async (
   id: string,
-  type: AuthProviderType,
-  databaseConfig: Config['database']
+  type: AuthProviderType
 ): Promise<User | undefined> => {
-  const db = getDBClient(databaseConfig)
-  const user = await db
-    .selectFrom('user')
-    .innerJoin('authorisations', 'authorisations.user_id', 'user.id')
-    .selectAll()
-    .where('authorisations.provider_user_id', '=', id)
-    .where('authorisations.provider_type', '=', type)
-    .executeTakeFirst()
-  return user ? new User(user) : undefined
+  const [user] = await db()
+    .select()
+    .from(users)
+    .innerJoin(authorisations, eq(authorisations.user_id, users.id))
+    .where(and(eq(authorisations.provider_user_id, id), eq(authorisations.provider_type, type)))
+  return user ? new User(user.user) : undefined
 }
 
 export const updateUserById = async (
   userId: number,
-  updateBody: Partial<UpdateUser>,
-  databaseConfig: Config['database']
+  updateBody: Partial<UpdateUser>
 ): Promise<User> => {
-  const db = getDBClient(databaseConfig)
-  let result: UpdateResult
   try {
-    result = await db
-      .updateTable('user')
+    const [updatedUser] = await db()
+      .update(users)
       .set(updateBody)
-      .where('id', '=', userId)
-      .executeTakeFirst()
-  } catch {
+      .where(eq(users.id, userId))
+      .returning()
+
+    if (!updatedUser) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found')
+    }
+
+    return new User(updatedUser)
+  } catch (error) {
+    if (error instanceof ApiError) throw error
     throw new ApiError(httpStatus.BAD_REQUEST, 'User already exists')
   }
-  if (!result.numUpdatedRows || Number(result.numUpdatedRows) < 1) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found')
-  }
-  const user = (await getUserById(userId, databaseConfig)) as User
-  return user
 }
 
-export const deleteUserById = async (
-  userId: number,
-  databaseConfig: Config['database']
-): Promise<void> => {
-  const db = getDBClient(databaseConfig)
-  const result = await db.deleteFrom('user').where('user.id', '=', userId).executeTakeFirst()
+export const deleteUserById = async (userId: number): Promise<void> => {
+  const result = await db().delete(users).where(eq(users.id, userId)).returning()
 
-  if (!result.numDeletedRows || Number(result.numDeletedRows) < 1) {
+  if (result.length < 1) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found')
   }
 }
 
-export const getAuthorisations = async (userId: number, databaseConfig: Config['database']) => {
-  const db = getDBClient(databaseConfig)
-  const auths = await db
-    .selectFrom('user')
-    .leftJoin('authorisations', 'authorisations.user_id', 'user.id')
-    .selectAll()
-    .where('user.id', '=', userId)
-    .execute()
+export const getAuthorisations = async (userId: number) => {
+  const auths = await db()
+    .select()
+    .from(users)
+    .leftJoin(authorisations, eq(authorisations.user_id, users.id))
+    .where(eq(users.id, userId))
 
   if (!auths) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate')
   }
   const response = {
-    local: auths[0].password !== null ? true : false,
+    local: auths[0].user.password !== null ? true : false,
     google: false,
     facebook: false,
     discord: false,
@@ -189,10 +156,10 @@ export const getAuthorisations = async (userId: number, databaseConfig: Config['
     apple: false
   }
   for (const auth of auths) {
-    if (auth.provider_type === null) {
+    if (auth.authorisation === null || auth.authorisation.provider_type === null) {
       continue
     }
-    response[auth.provider_type as AuthProviderType] = true
+    response[auth.authorisation.provider_type as AuthProviderType] = true
   }
   return response
 }

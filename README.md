@@ -1,4 +1,5 @@
 # RESTful API Cloudflare Workers Boilerplate
+
 A boilerplate/starter project for quickly building RESTful APIs using
 [Cloudflare Workers](https://workers.cloudflare.com/), [Hono](https://honojs.dev/), and
 [PlanetScale](https://planetscale.com/). Inspired by
@@ -38,7 +39,7 @@ npm init cf-planetscale-app <project-name>
 ## Features
 
 - **SQL database**: [PlanetScale](https://planetscale.com/) using
-[Kysely](https://github.com/koskimas/kysely) as a type-safe SQl query builder
+  [Kysely](https://github.com/koskimas/kysely) as a type-safe SQl query builder
 - **Authentication and authorization**: using JWT
 - **Validation**: request data validation using [Zod](https://github.com/colinhacks/zod)
 - **Logging**: using [Sentry](https://sentry.io/)
@@ -51,6 +52,51 @@ npm init cf-planetscale-app <project-name>
   Instagram and Twitter
 - **Rate Limiting**: using Cloudflare durable objects you can rate limit endpoints usin the sliding
   window algorithm
+
+## Setup
+
+Copy .env.example to .env and fill in the values
+You will need it for running the migration.
+
+```bash
+cp .env.example .env
+```
+
+Copy .env.test.example to .env.test and fill in the values.
+You will need it for running the tests.
+
+```bash
+cp .env.test.example .env.test
+```
+
+Start Postgres locally
+You will need it for running the tests.
+
+```bash
+docker run --name=postgres --rm -itd -p 5432:5432 \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=test \
+  postgres:latest \
+  postgres -c 'max_connections=1000'
+```
+
+Generate Drizzle Queries
+
+```bash
+npm run generate
+```
+
+Migrate
+
+```bash
+npm run migrate
+```
+
+Run a specific test
+
+```bash
+yarn vitest run tests/integration/auth/oauth/apple.test.ts
+```
 
 ## Commands
 
@@ -140,7 +186,6 @@ The validation schemas are defined in the `src/validations` directory and are us
 controllers by getting either the query or body and then calling the parse on the relevant
 validation function:
 
-
 ```javascript
 const getUsers: Handler<{ Bindings: Bindings }> = async (c) => {
   const config = getConfig(c.env)
@@ -148,7 +193,7 @@ const getUsers: Handler<{ Bindings: Bindings }> = async (c) => {
   const query = userValidation.getUsers.parse(queryParse)
   const filter = { email: query.email }
   const options = { sortBy: query.sort_by, limit: query.limit, page: query.page }
-  const result = await userService.queryUsers(filter, options, config.database)
+  const result = await userService.queryUsers(filter, options)
   return c.json(result, httpStatus.OK)
 }
 ```
@@ -255,14 +300,14 @@ If the rate limit is hit a `429` will be returned to the client.
 
 These headers are returned with each endpoint that has rate limiting applied:
 
-* `X-RateLimit-Limit` - How many requests are allowed per window
-* `X-RateLimit-Reset` - How many seconds until the current window resets
-* `X-RateLimit-Policy` - Details about the rate limit policy in this format `${limit};w=${interval};comment="Sliding window"`
-* `X-RateLimit-Remaining` - How many requests you can send until you will be rate limited. Please
-note this doesn't just reset to the limit when the reset period hits. Use it as indicator of your
-current throughput e.g. if you have 12 requests allowed every 1 second and remaining is 0
-you are at 100% throughput, but if it is 6 you are 50% throughput. This value constantly changes
-as the window progresses either increasing or decreasing based on your throughput
+- `X-RateLimit-Limit` - How many requests are allowed per window
+- `X-RateLimit-Reset` - How many seconds until the current window resets
+- `X-RateLimit-Policy` - Details about the rate limit policy in this format `${limit};w=${interval};comment="Sliding window"`
+- `X-RateLimit-Remaining` - How many requests you can send until you will be rate limited. Please
+  note this doesn't just reset to the limit when the reset period hits. Use it as indicator of your
+  current throughput e.g. if you have 12 requests allowed every 1 second and remaining is 0
+  you are at 100% throughput, but if it is 6 you are 50% throughput. This value constantly changes
+  as the window progresses either increasing or decreasing based on your throughput
 
 The rate limit will be based on IP unless the user is authenticated then it will be based on the
 user ID.

@@ -1,9 +1,9 @@
-import jwt, { JwtPayload } from '@tsndr/cloudflare-worker-jwt'
-import { MiddlewareHandler } from 'hono'
+import jwt, { type JwtPayload } from '@tsndr/cloudflare-worker-jwt'
+import { type MiddlewareHandler } from 'hono'
 import httpStatus from 'http-status'
-import { Environment } from '../../bindings'
-import { getConfig } from '../config/config'
-import { roleRights, Permission, Role } from '../config/roles'
+import { type Environment } from '../../bindings'
+import { getConfig } from '../config'
+import { roleRights, type Permission, type Role } from '../config/roles'
 import { tokenTypes } from '../config/tokens'
 import { getUserById } from '../services/user.service'
 import { ApiError } from '../utils/ApiError'
@@ -24,6 +24,7 @@ export const auth =
   (...requiredRights: Permission[]): MiddlewareHandler<Environment> =>
   async (c, next) => {
     const credentials = c.req.raw.headers.get('Authorization')
+
     const config = getConfig(c.env)
     if (!credentials) {
       throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate')
@@ -51,7 +52,7 @@ export const auth =
       }
     }
     if (!payload.isEmailVerified) {
-      const user = await getUserById(Number(payload.sub), config['database'])
+      const user = await getUserById(Number(payload.sub))
       if (!user) {
         throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate')
       }

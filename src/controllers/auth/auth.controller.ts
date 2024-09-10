@@ -1,7 +1,7 @@
 import { Handler } from 'hono'
 import httpStatus from 'http-status'
 import { Environment } from '../../../bindings'
-import { getConfig } from '../../config/config'
+import { getConfig } from '../../config'
 import * as authService from '../../services/auth.service'
 import * as emailService from '../../services/email.service'
 import * as tokenService from '../../services/token.service'
@@ -12,7 +12,7 @@ export const register: Handler<Environment> = async (c) => {
   const config = getConfig(c.env)
   const bodyParse = await c.req.json()
   const body = await authValidation.register.parseAsync(bodyParse)
-  const user = await authService.register(body, config.database)
+  const user = await authService.register(body)
   const tokens = await tokenService.generateAuthTokens(user, config.jwt)
   return c.json({ user, tokens }, httpStatus.CREATED)
 }
@@ -21,7 +21,7 @@ export const login: Handler<Environment> = async (c) => {
   const config = getConfig(c.env)
   const bodyParse = await c.req.json()
   const { email, password } = authValidation.login.parse(bodyParse)
-  const user = await authService.loginUserWithEmailAndPassword(email, password, config.database)
+  const user = await authService.loginUserWithEmailAndPassword(email, password)
   const tokens = await tokenService.generateAuthTokens(user, config.jwt)
   return c.json({ user, tokens }, httpStatus.OK)
 }
@@ -38,7 +38,7 @@ export const forgotPassword: Handler<Environment> = async (c) => {
   const bodyParse = await c.req.json()
   const config = getConfig(c.env)
   const { email } = authValidation.forgotPassword.parse(bodyParse)
-  const user = await userService.getUserByEmail(email, config.database)
+  const user = await userService.getUserByEmail(email)
   // Don't let bad actors know if the email is registered by throwing if the user exists
   if (user) {
     const resetPasswordToken = await tokenService.generateResetPasswordToken(user, config.jwt)
@@ -72,7 +72,7 @@ export const sendVerificationEmail: Handler<Environment> = async (c) => {
   // Don't let bad actors know if the email is registered by returning an error if the email
   // is already verified
   try {
-    const user = await userService.getUserById(userId, config.database)
+    const user = await userService.getUserById(userId)
     if (!user || user.is_email_verified) {
       throw new Error()
     }
@@ -97,9 +97,8 @@ export const verifyEmail: Handler<Environment> = async (c) => {
 }
 
 export const getAuthorisations: Handler<Environment> = async (c) => {
-  const config = getConfig(c.env)
   const payload = c.get('payload')
   const userId = Number(payload.sub)
-  const authorisations = await userService.getAuthorisations(userId, config.database)
+  const authorisations = await userService.getAuthorisations(userId)
   return c.json(authorisations, httpStatus.OK)
 }

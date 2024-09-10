@@ -1,9 +1,9 @@
 import { faker } from '@faker-js/faker'
 import bcrypt from 'bcryptjs'
-import { Insertable } from 'kysely'
-import { Config } from '../../src/config/config'
-import { getDBClient } from '../../src/config/database'
-import { UserTable } from '../../src/models/user.model'
+import { type Insertable } from 'kysely'
+import { type UserTable } from '../../src/models/user.model'
+import db from '@/db'
+import { user } from '@/db/schemas/pg/user'
 
 const password = 'password1'
 const salt = bcrypt.genSaltSync(8)
@@ -43,16 +43,17 @@ export const admin: MockUser = {
   is_email_verified: false
 }
 
-export const insertUsers = async (users: MockUser[], databaseConfig: Config['database']) => {
+export const insertUsers = async (users: MockUser[]) => {
   const hashedUsers = users.map((user) => ({
     ...user,
     password: user.password ? hashedPassword : null
   }))
-  const client = getDBClient(databaseConfig)
   const results: number[] = []
-  for await (const user of hashedUsers) {
-    const result = await client.insertInto('user').values(user).executeTakeFirst()
-    results.push(Number(result.insertId))
+  for await (const userData of hashedUsers) {
+    const [inserted] = await db().insert(user).values(userData).returning({ id: user.id })
+    if (inserted && inserted.id) {
+      results.push(inserted.id)
+    }
   }
   return results
 }

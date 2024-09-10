@@ -1,10 +1,10 @@
 import { getSentry } from '@hono/sentry'
 import type { ErrorHandler } from 'hono'
-import { StatusCode } from 'hono/utils/http-status'
+import { type StatusCode } from 'hono/utils/http-status'
 import httpStatus from 'http-status'
 import type { Toucan } from 'toucan-js'
 import { ZodError } from 'zod'
-import { Environment } from '../../bindings'
+import { type Environment } from '../../bindings'
 import { ApiError } from '../utils/ApiError'
 import { generateZodErrorMessage } from '../utils/zod'
 

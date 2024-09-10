@@ -1,24 +1,26 @@
+import { eq, count, and } from 'drizzle-orm'
 import httpStatus from 'http-status'
-import { Config } from '../config/config'
-import { getDBClient } from '../config/database'
-import { Role } from '../config/roles'
+import { type Config } from '../config'
+import { type Role } from '../config/roles'
 import { tokenTypes } from '../config/tokens'
 import { OAuthUserModel } from '../models/oauth/oauthBase.model'
-import { TokenResponse } from '../models/token.model'
+import { type TokenResponse } from '../models/token.model'
 import { User } from '../models/user.model'
-import { AuthProviderType } from '../types/oauth.types'
+import { type AuthProviderType } from '../types/oauth.types'
 import { ApiError } from '../utils/ApiError'
-import { Register } from '../validations/auth.validation'
+import { type Register } from '../validations/auth.validation'
 import * as tokenService from './token.service'
 import * as userService from './user.service'
 import { createUser } from './user.service'
+import db from '@/db'
+import { authorisation } from '@/db/schemas/pg'
+import { user, user as users } from '@/db/schemas/pg/user'
 
 export const loginUserWithEmailAndPassword = async (
   email: string,
-  password: string,
-  databaseConfig: Config['database']
+  password: string
 ): Promise<User> => {
-  const user = await userService.getUserByEmail(email, databaseConfig)
+  const user = await userService.getUserByEmail(email)
   // If password is null then the user must login with a social account
   if (user && !user.password) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Please login with your social account')
@@ -36,7 +38,7 @@ export const refreshAuth = async (refreshToken: string, config: Config): Promise
       tokenTypes.REFRESH,
       config.jwt.secret
     )
-    const user = await userService.getUserById(Number(refreshTokenDoc.sub), config.database)
+    const user = await userService.getUserById(Number(refreshTokenDoc.sub))
     if (!user) {
       throw new Error()
     }
@@ -46,12 +48,9 @@ export const refreshAuth = async (refreshToken: string, config: Config): Promise
   }
 }
 
-export const register = async (
-  body: Register,
-  databaseConfig: Config['database']
-): Promise<User> => {
+export const register = async (body: Register): Promise<User> => {
   const registerBody = { ...body, role: 'user' as Role, is_email_verified: false }
-  const newUser = await createUser(registerBody, databaseConfig)
+  const newUser = await createUser(registerBody)
   return newUser
 }
 
@@ -67,11 +66,11 @@ export const resetPassword = async (
       config.jwt.secret
     )
     const userId = Number(resetPasswordTokenDoc.sub)
-    const user = await userService.getUserById(userId, config.database)
+    const user = await userService.getUserById(userId)
     if (!user) {
       throw new Error()
     }
-    await userService.updateUserById(user.id, { password: newPassword }, config.database)
+    await userService.updateUserById(user.id, { password: newPassword })
   } catch {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed')
   }
@@ -85,88 +84,78 @@ export const verifyEmail = async (verifyEmailToken: string, config: Config): Pro
       config.jwt.secret
     )
     const userId = Number(verifyEmailTokenDoc.sub)
-    const user = await userService.getUserById(userId, config.database)
+    const user = await userService.getUserById(userId)
     if (!user) {
       throw new Error()
     }
-    await userService.updateUserById(user.id, { is_email_verified: true }, config.database)
+    await userService.updateUserById(user.id, { is_email_verified: true })
   } catch {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Email verification failed')
   }
 }
 
-export const loginOrCreateUserWithOauth = async (
-  providerUser: OAuthUserModel,
-  databaseConfig: Config['database']
-): Promise<User> => {
+export const loginOrCreateUserWithOauth = async (providerUser: OAuthUserModel): Promise<User> => {
   const user = await userService.getUserByProviderIdType(
     providerUser._id,
-    providerUser.providerType,
-    databaseConfig
+    providerUser.providerType
   )
   if (user) return user
-  return userService.createOauthUser(providerUser, databaseConfig)
+  return userService.createOauthUser(providerUser)
 }
 
 export const linkUserWithOauth = async (
   userId: number,
-  providerUser: OAuthUserModel,
-  databaseConfig: Config['database']
+  providerUser: OAuthUserModel
 ): Promise<void> => {
-  const db = getDBClient(databaseConfig)
-  await db.transaction().execute(async (trx) => {
+  await db().transaction(async (trx) => {
+    // Changed to drizzle syntax
     try {
-      await trx
-        .selectFrom('user')
-        .selectAll()
-        .where('user.id', '=', userId)
-        .executeTakeFirstOrThrow()
+      await trx.select().from(users).where(eq(users.id, userId))
     } catch {
       throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate')
     }
-    await trx
-      .insertInto('authorisations')
-      .values({
-        user_id: userId,
-        provider_user_id: providerUser._id,
-        provider_type: providerUser.providerType
-      })
-      .executeTakeFirstOrThrow()
+    await trx.insert(authorisation).values({
+      user_id: userId,
+      provider_user_id: providerUser._id,
+      provider_type: providerUser.providerType
+    })
   })
 }
 
 export const deleteOauthLink = async (
   userId: number,
-  provider: AuthProviderType,
-  databaseConfig: Config['database']
+  provider: AuthProviderType
 ): Promise<void> => {
-  const db = getDBClient(databaseConfig)
-  await db.transaction().execute(async (trx) => {
-    const { count } = trx.fn
-    let loginsNo: number
+  await db().transaction(async (trx) => {
     try {
-      const logins = await trx
-        .selectFrom('user')
-        .select('password')
-        .select(count<number>('authorisations.provider_user_id').as('authorisations'))
-        .leftJoin('authorisations', 'authorisations.user_id', 'user.id')
-        .where('user.id', '=', userId)
-        .groupBy('user.password')
-        .executeTakeFirstOrThrow()
-      loginsNo = logins.password !== null ? logins.authorisations + 1 : logins.authorisations
+      // Select logins using Drizzle syntax
+      const [login] = await trx
+        .select({
+          password: user.password,
+          authorisations: count(authorisation.provider_user_id).as('authorisationsCount')
+        })
+        .from(user)
+        .leftJoin(authorisation, eq(user.id, authorisation.user_id))
+        .where(eq(user.id, userId))
+        .groupBy(user.password)
+
+      const loginsNo = login.password !== null ? login.authorisations + 1 : login.authorisations
+
+      const minLoginMethods = 1
+      if (loginsNo <= minLoginMethods) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot unlink last login method')
+      }
+
+      // Delete from authorisations
+      const result = await trx
+        .delete(authorisation)
+        .where(and(eq(authorisation.user_id, userId), eq(authorisation.provider_type, provider)))
+        .returning()
+
+      if (result.length < 1) {
+        throw new ApiError(httpStatus.BAD_REQUEST, 'Account not linked')
+      }
     } catch {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Account not linked')
-    }
-    const minLoginMethods = 1
-    if (loginsNo <= minLoginMethods) {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot unlink last login method')
-    }
-    const result = await trx
-      .deleteFrom('authorisations')
-      .where('user_id', '=', userId)
-      .where('provider_type', '=', provider)
-      .executeTakeFirst()
-    if (!result.numDeletedRows || Number(result.numDeletedRows) < 1) {
       throw new ApiError(httpStatus.BAD_REQUEST, 'Account not linked')
     }
   })
