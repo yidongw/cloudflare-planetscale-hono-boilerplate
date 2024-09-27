@@ -23,4 +23,4 @@ COPY . .
 EXPOSE 3000
 
 # Command to run your application (adjust according to your app)
-CMD ["bun", "run", "start"]
+CMD ["bun", "run", "start:bun"]
