@@ -8,12 +8,12 @@ import * as githubController from '../controllers/auth/oauth/github.controller'
 import * as googleController from '../controllers/auth/oauth/google.controller'
 import * as spotifyController from '../controllers/auth/oauth/spotify.controller'
 import { auth } from '../middlewares/auth'
-import { rateLimit } from '../middlewares/rateLimiter'
+// import { rateLimit } from '../middlewares/rateLimiter'
 
 export const route = new Hono<Environment>()
 
-const twoMinutes = 120
-const oneRequest = 1
+// const twoMinutes = 120
+// const oneRequest = 1
 
 route.post('/register', authController.register)
 route.post('/login', authController.login)
@@ -23,7 +23,7 @@ route.post('/reset-password', authController.resetPassword)
 route.post(
   '/send-verification-email',
   auth(),
-  rateLimit(twoMinutes, oneRequest),
+  // rateLimit(twoMinutes, oneRequest),
   authController.sendVerificationEmail
 )
 route.post('/verify-email', authController.verifyEmail)

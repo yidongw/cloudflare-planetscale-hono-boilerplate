@@ -179,4 +179,9 @@ export const getConfig = (env: Environment['Bindings']): Config => {
   return config
 }
 
-export const config = () => getConfig(process.env as unknown as Environment['Bindings'])
+export const config = () =>
+  getConfig(
+    typeof Bun !== 'undefined' && Bun.env
+      ? (Bun.env as unknown as Environment['Bindings'])
+      : (process.env as unknown as Environment['Bindings'])
+  )

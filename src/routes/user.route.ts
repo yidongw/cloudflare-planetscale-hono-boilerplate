@@ -6,7 +6,11 @@ import { auth } from '../middlewares/auth'
 export const route = new Hono<Environment>()
 
 route.post('/', auth('manageUsers'), userController.createUser)
-route.get('/', auth('getUsers'), userController.getUsers)
+route.get(
+  '/',
+  //  auth('getUsers'),
+  userController.getUsers
+)
 
 route.get('/:userId', auth('getUsers'), userController.getUser)
 route.patch('/:userId', auth('manageUsers'), userController.updateUser)

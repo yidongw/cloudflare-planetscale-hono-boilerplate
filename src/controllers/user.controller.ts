@@ -3,6 +3,7 @@ import httpStatus from 'http-status'
 import { type Environment } from '../../bindings'
 import * as userService from '../services/user.service'
 import { ApiError } from '../utils/ApiError'
+import { logger } from '../utils/logger'
 import * as userValidation from '../validations/user.validation'
 
 export const createUser: Handler<Environment> = async (c) => {
@@ -15,9 +16,14 @@ export const createUser: Handler<Environment> = async (c) => {
 export const getUsers: Handler<Environment> = async (c) => {
   const queryParse = c.req.query()
   const query = userValidation.getUsers.parse(queryParse)
+
   const filter = { email: query.email }
+
   const options = { sortBy: query.sort_by, limit: query.limit, page: query.page }
+
   const result = await userService.queryUsers(filter, options)
+
+  logger().error(new Error('test error'), 'TEST ERROR')
   return c.json(result, httpStatus.OK)
 }
 

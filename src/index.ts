@@ -7,7 +7,7 @@ import { type Environment } from '../bindings'
 import { errorHandler } from './middlewares/error'
 import { defaultRoutes } from './routes'
 import { ApiError } from './utils/ApiError'
-export { RateLimiter } from './durable-objects/rateLimiter.do'
+// export { RateLimiter } from './durable-objects/rateLimiter.do'
 
 const app = new Hono<Environment>()
 

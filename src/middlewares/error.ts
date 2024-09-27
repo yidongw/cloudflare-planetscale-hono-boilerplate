@@ -7,6 +7,7 @@ import { ZodError } from 'zod'
 import { type Environment } from '../../bindings'
 import { ApiError } from '../utils/ApiError'
 import { generateZodErrorMessage } from '../utils/zod'
+import { logger } from '@/utils/logger'
 
 const genericJSONErrMsg = 'Unexpected end of JSON input'
 
@@ -28,6 +29,7 @@ export const errorConverter = (err: unknown, sentry: Toucan): ApiError => {
       httpStatus[statusCode.toString() as keyof typeof httpStatus]) as string
     if (statusCode >= httpStatus.INTERNAL_SERVER_ERROR) {
       // Log any unhandled application error
+      logger().error(err, 'Uncaught Exception')
       sentry.captureException(error)
     }
     error = new ApiError(statusCode, message, false)

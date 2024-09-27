@@ -1,6 +1,6 @@
 import type { JwtPayload } from '@tsndr/cloudflare-worker-jwt'
 import type { Toucan } from 'toucan-js'
-import type { RateLimiter } from './src/durable-objects/rateLimiter.do'
+// import type { RateLimiter } from './src/durable-objects/rateLimiter.do'
 
 type Environment = {
   Bindings: {
@@ -12,7 +12,7 @@ type Environment = {
     JWT_VERIFY_EMAIL_EXPIRATION_MINUTES: number
     DATABASE_CLIENT_TYPE: string
     DATABASE_URL: string
-    RATE_LIMITER: DurableObjectNamespace<RateLimiter>
+    // RATE_LIMITER: DurableObjectNamespace<RateLimiter>
     SENTRY_DSN: string
     AWS_ACCESS_KEY_ID: string
     AWS_SECRET_ACCESS_KEY: string
