@@ -38,8 +38,8 @@
   ],
   "scripts": {
     "dev": "wrangler dev src/index.ts --live-reload --port 8787",
-    "tests": "vitest",
-    "tests:coverage": "vitest --coverage --coverage.provider istanbul --coverage.include src/",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage --coverage.provider istanbul --coverage.include src/",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "lint": "eslint .",

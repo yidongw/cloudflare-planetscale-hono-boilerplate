@@ -14,7 +14,10 @@ const app = new Hono<Environment>()
 
 // Middleware to bind env vars to process.env
 app.use('*', (c, next) => {
-  Object.assign(process.env, c.env) // Directly assign env vars
+  Object.assign(process.env, {
+    ...c.env,
+    HYPERDRIVE: JSON.stringify(c.env.HYPERDRIVE)
+  })
   return next()
 })
 

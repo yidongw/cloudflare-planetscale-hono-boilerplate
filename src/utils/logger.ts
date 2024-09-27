@@ -19,7 +19,7 @@ export const logger = () => {
         }
       },
       write: (o: any) => {
-        if (config().isDev) {
+        if (config().ENV === 'development') {
           const { time, level, msg, ...rest } = o
           const paddedLevel = level.padEnd(5, ' ')
           let logMessage = `[${time}] ${paddedLevel}: ${msg ? msg : ''}`
@@ -36,14 +36,14 @@ export const logger = () => {
       }
     },
 
-    level: config().logLevel,
+    level: config().LOG_LEVEL,
     transport: {
       targets: [
-        ...(config().isDev
+        ...(config().ENV === 'development'
           ? [
               {
                 target: 'pino-pretty',
-                level: config().logLevel,
+                level: config().LOG_LEVEL,
                 options: {
                   ignore: 'pid,hostname',
                   colorize: true,
@@ -54,7 +54,7 @@ export const logger = () => {
           : [
               {
                 target: 'pino/file',
-                level: config().logLevel,
+                level: config().LOG_LEVEL,
                 options: {}
               }
             ])

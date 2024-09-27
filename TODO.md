@@ -1,5 +1,6 @@
 ### Todo
 
+- [ ] Simplify the config file
 - [ ] CI/CD using Github Actions
 - [ ] Use Bun instead
 - [ ] Flesh out README
