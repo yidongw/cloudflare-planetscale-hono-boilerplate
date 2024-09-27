@@ -7,10 +7,9 @@ import { type Environment } from '../bindings'
 import { errorHandler } from './middlewares/error'
 import { defaultRoutes } from './routes'
 import { ApiError } from './utils/ApiError'
-import { logger } from './utils/logger'
 import { resTimeLogger } from '@/middlewares/resTimeLogger'
 // export { RateLimiter } from './durable-objects/rateLimiter.do'
-
+/* eslint no-console: "off" */
 const app = new Hono<Environment>()
 
 // Middleware to bind env vars to process.env
@@ -34,5 +33,5 @@ defaultRoutes.forEach((route) => {
   app.route(`${route.path}`, route.route)
 })
 
-logger().info('Server is running')
+console.log('Server is running')
 export default app

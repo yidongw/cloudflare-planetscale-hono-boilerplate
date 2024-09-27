@@ -18,7 +18,7 @@ const time = (start: number) => {
   return delta < 1000 ? delta + 'ms' : Math.round(delta / 1000) + '.' + (delta % 1000) + 's'
 }
 
-const colorStatus = (status: number) => {
+export const colorStatus = (status: number) => {
   const colorEnabled = getColorEnabled()
   const out: { [key: string]: string } = {
     7: colorEnabled ? `\x1b[35m${status}\x1b[0m` : `${status}`,
@@ -43,9 +43,7 @@ function logMessage(
   elapsed?: string
 ) {
   const out =
-    prefix === LogPrefix.Incoming
-      ? `${method} ${path}`
-      : `${method} ${path} ${colorStatus(status)} ${elapsed}`
+    prefix === LogPrefix.Incoming ? `${method} ${path}` : `${method} ${path} ${status} ${elapsed}`
   return out
 }
 
