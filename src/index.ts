@@ -2,6 +2,7 @@ import process from 'node:process'
 import { sentry } from '@hono/sentry'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { logger } from 'hono/logger'
 import httpStatus from 'http-status'
 import { type Environment } from '../bindings'
 import { errorHandler } from './middlewares/error'
@@ -10,6 +11,7 @@ import { ApiError } from './utils/ApiError'
 // export { RateLimiter } from './durable-objects/rateLimiter.do'
 
 const app = new Hono<Environment>()
+app.use(logger())
 
 // Middleware to bind env vars to process.env
 app.use('*', (c, next) => {

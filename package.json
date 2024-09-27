@@ -47,7 +47,7 @@
     "prettier": "prettier --check **/*.ts",
     "prettier:fix": "prettier --write **/**/*.ts",
     "prepare": "husky",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy src/index.ts",
     "dev:bun": "bun run --hot src/index.ts",
     "build:bun": "bun build --target=bun --sourcemap --outdir ./out src/index.ts",
     "start:bun": "bun run build:bun && bun out/index.js"
@@ -79,7 +79,7 @@
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.2.0",
     "vitest": "1.5.0",
-    "wrangler": "^3.75.0"
+    "wrangler": "^3.78.10"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.637.0",
