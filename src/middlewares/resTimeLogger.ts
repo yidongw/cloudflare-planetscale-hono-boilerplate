@@ -3,9 +3,11 @@
  * Logger Middleware for Hono.
  */
 
+import { env } from 'hono/adapter'
 import type { MiddlewareHandler } from 'hono/types'
 import { getColorEnabled } from 'hono/utils/color'
 import { getPath } from 'hono/utils/url'
+import { getConfig } from '@/config'
 import { logger as pinoLogger } from '@/utils/logger'
 enum LogPrefix {
   Outgoing = '-->',
@@ -65,6 +67,8 @@ function logMessage(
  */
 export const resTimeLogger = (): MiddlewareHandler => {
   return async function logger(c, next) {
+    const config = getConfig(env(c))
+
     const { method } = c.req
 
     const path = getPath(c.req.raw)
@@ -73,7 +77,9 @@ export const resTimeLogger = (): MiddlewareHandler => {
 
     await next()
 
-    const msg = logMessage(LogPrefix.Outgoing, method, path, c.res.status, time(start))
-    pinoLogger().info(msg)
+    if (config.env !== 'test') {
+      const msg = logMessage(LogPrefix.Outgoing, method, path, c.res.status, time(start))
+      pinoLogger().info(msg)
+    }
   }
 }

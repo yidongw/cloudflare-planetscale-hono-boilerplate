@@ -1,4 +1,4 @@
-import { defineWorkersConfig } from '@cloudflare/vitest-pool-workers/config'
+import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 import tsconfig from "./tsconfig.json";
 import { config } from "dotenv";
@@ -14,18 +14,12 @@ const alias = Object.fromEntries(
   ])
 );
 
-export default defineWorkersConfig({
+export default defineConfig({
   test: {
-    poolOptions: {
-      workers: {
-        wrangler: { configPath: 'wrangler.test.toml' }, // todo: might need to change this for test
-        isolatedStorage: true,
-        singleWorker: true
-      }
-    },
     env: {
       ...config({ path: ".env.test" }).parsed,
     },
+    fileParallelism: false,
   },
   resolve: {
     alias

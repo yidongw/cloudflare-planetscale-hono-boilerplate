@@ -1,27 +1,12 @@
 import process from 'node:process'
 import httpStatus from 'http-status'
 import { ZodError, z } from 'zod'
-import { type Environment } from '../../bindings'
 import { ApiError } from '../utils/ApiError'
 import { generateZodErrorMessage } from '../utils/zod'
 
-// Create a Zod schema that matches the Hyperdrive interface
-const hyperdriveSchema = z.object({
-  connect: z.function().returns(z.unknown()), // Adjust if needed
-  connectionString: z.string(),
-  host: z.string(),
-  port: z.number(),
-  user: z.string(),
-  password: z.string(),
-  database: z.string()
-})
-
 const envVarsSchema = z.object({
   ENV: z.union([z.literal('production'), z.literal('development'), z.literal('test')]),
-  HYPERDRIVE: hyperdriveSchema.optional(),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
-  // Database Client Type
-  DATABASE_CLIENT_TYPE: z.string(),
   // Database URL
   DATABASE_URL: z.string(),
   WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_TEST_DB: z.string().optional(),
@@ -42,30 +27,13 @@ const envVarsSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string(),
   AWS_SECRET_ACCESS_KEY: z.string(),
   AWS_REGION: z.string(),
-  EMAIL_SENDER: z.string(),
-  OAUTH_GITHUB_CLIENT_ID: z.string(),
-  OAUTH_GITHUB_CLIENT_SECRET: z.string(),
-  OAUTH_GOOGLE_CLIENT_ID: z.string(),
-  OAUTH_GOOGLE_CLIENT_SECRET: z.string(),
-  OAUTH_GOOGLE_REDIRECT_URL: z.string(),
-  OAUTH_DISCORD_CLIENT_ID: z.string(),
-  OAUTH_DISCORD_CLIENT_SECRET: z.string(),
-  OAUTH_DISCORD_REDIRECT_URL: z.string(),
-  OAUTH_SPOTIFY_CLIENT_ID: z.string(),
-  OAUTH_SPOTIFY_CLIENT_SECRET: z.string(),
-  OAUTH_SPOTIFY_REDIRECT_URL: z.string(),
-  OAUTH_FACEBOOK_CLIENT_ID: z.string(),
-  OAUTH_FACEBOOK_CLIENT_SECRET: z.string(),
-  OAUTH_FACEBOOK_REDIRECT_URL: z.string(),
-  OAUTH_APPLE_CLIENT_ID: z.string(),
-  OAUTH_APPLE_CLIENT_SECRET: z.string(),
-  OAUTH_APPLE_REDIRECT_URL: z.string()
+  EMAIL_SENDER: z.string()
 })
 
 export type EnvVarsSchemaType = z.infer<typeof envVarsSchema>
 
 // TODO: Remove this function and replace with getEnv
-export const getConfig = (env: Environment['Bindings']) => {
+export const getConfig = (env: any) => {
   try {
     const envVars = envVarsSchema.parse(env)
     return {
@@ -73,7 +41,6 @@ export const getConfig = (env: Environment['Bindings']) => {
       isDev: envVars.ENV === 'development',
       isProd: envVars.ENV === 'production',
       logLevel: envVars.LOG_LEVEL,
-      databaseClientType: envVars.DATABASE_CLIENT_TYPE,
       databaseUrl: envVars.DATABASE_URL,
       jwt: {
         secret: envVars.JWT_SECRET,
@@ -89,37 +56,6 @@ export const getConfig = (env: Environment['Bindings']) => {
       },
       email: {
         sender: envVars.EMAIL_SENDER
-      },
-      oauth: {
-        github: {
-          clientId: envVars.OAUTH_GITHUB_CLIENT_ID,
-          clientSecret: envVars.OAUTH_GITHUB_CLIENT_SECRET
-        },
-        google: {
-          clientId: envVars.OAUTH_GOOGLE_CLIENT_ID,
-          clientSecret: envVars.OAUTH_GOOGLE_CLIENT_SECRET,
-          redirectUrl: envVars.OAUTH_GOOGLE_REDIRECT_URL
-        },
-        spotify: {
-          clientId: envVars.OAUTH_SPOTIFY_CLIENT_ID,
-          clientSecret: envVars.OAUTH_SPOTIFY_CLIENT_SECRET,
-          redirectUrl: envVars.OAUTH_SPOTIFY_REDIRECT_URL
-        },
-        discord: {
-          clientId: envVars.OAUTH_DISCORD_CLIENT_ID,
-          clientSecret: envVars.OAUTH_DISCORD_CLIENT_SECRET,
-          redirectUrl: envVars.OAUTH_DISCORD_REDIRECT_URL
-        },
-        facebook: {
-          clientId: envVars.OAUTH_FACEBOOK_CLIENT_ID,
-          clientSecret: envVars.OAUTH_FACEBOOK_CLIENT_SECRET,
-          redirectUrl: envVars.OAUTH_FACEBOOK_REDIRECT_URL
-        },
-        apple: {
-          clientId: envVars.OAUTH_APPLE_CLIENT_ID,
-          clientSecret: envVars.OAUTH_APPLE_CLIENT_SECRET,
-          redirectUrl: envVars.OAUTH_APPLE_REDIRECT_URL
-        }
       }
     }
   } catch (err) {
@@ -136,7 +72,7 @@ export const getConfig = (env: Environment['Bindings']) => {
 
 let cachedConfig: EnvVarsSchemaType
 
-export const getEnv = (env: Environment['Bindings']): EnvVarsSchemaType => {
+export const getEnv = (env: any): EnvVarsSchemaType => {
   try {
     cachedConfig = envVarsSchema.parse(env)
   } catch (err) {
@@ -158,13 +94,11 @@ export const config = () => {
   }
   return getEnv(
     typeof Bun !== 'undefined' && Bun.env
-      ? ({
-          ...Bun.env,
-          HYPERDRIVE: Bun.env.HYPERDRIVE ? JSON.parse(Bun.env.HYPERDRIVE) : undefined
-        } as unknown as Environment['Bindings'])
-      : ({
-          ...process.env,
-          HYPERDRIVE: process.env.HYPERDRIVE ? JSON.parse(process.env.HYPERDRIVE) : undefined
-        } as unknown as Environment['Bindings'])
+      ? {
+          ...Bun.env
+        }
+      : {
+          ...process.env
+        }
   )
 }

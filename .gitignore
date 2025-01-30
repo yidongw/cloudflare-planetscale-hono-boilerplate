@@ -9,10 +9,8 @@ node_modules/
 .env*
 !*.example
 .mf
-wrangler.toml
 coverage
 .vscode
 pnpm-lock.yaml
 .dev.vars
-.wrangler/
 out/

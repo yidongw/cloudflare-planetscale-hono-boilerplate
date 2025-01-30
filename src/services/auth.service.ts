@@ -1,20 +1,13 @@
-import { eq, count, and } from 'drizzle-orm'
 import httpStatus from 'http-status'
-import { type Config } from '../config'
 import { type Role } from '../config/roles'
 import { tokenTypes } from '../config/tokens'
-import { OAuthUserModel } from '../models/oauth/oauthBase.model'
 import { type TokenResponse } from '../models/token.model'
 import { User } from '../models/user.model'
-import { type AuthProviderType } from '../types/oauth.types'
 import { ApiError } from '../utils/ApiError'
 import { type Register } from '../validations/auth.validation'
 import * as tokenService from './token.service'
 import * as userService from './user.service'
 import { createUser } from './user.service'
-import db from '@/db'
-import { authorisation } from '@/db/schemas/pg'
-import { user, user as users } from '@/db/schemas/pg/user'
 
 export const loginUserWithEmailAndPassword = async (
   email: string,
@@ -31,7 +24,7 @@ export const loginUserWithEmailAndPassword = async (
   return user
 }
 
-export const refreshAuth = async (refreshToken: string, config: Config): Promise<TokenResponse> => {
+export const refreshAuth = async (refreshToken: string, config: any): Promise<TokenResponse> => {
   try {
     const refreshTokenDoc = await tokenService.verifyToken(
       refreshToken,
@@ -57,7 +50,7 @@ export const register = async (body: Register): Promise<User> => {
 export const resetPassword = async (
   resetPasswordToken: string,
   newPassword: string,
-  config: Config
+  config: any
 ): Promise<void> => {
   try {
     const resetPasswordTokenDoc = await tokenService.verifyToken(
@@ -76,7 +69,7 @@ export const resetPassword = async (
   }
 }
 
-export const verifyEmail = async (verifyEmailToken: string, config: Config): Promise<void> => {
+export const verifyEmail = async (verifyEmailToken: string, config: any): Promise<void> => {
   try {
     const verifyEmailTokenDoc = await tokenService.verifyToken(
       verifyEmailToken,
@@ -92,71 +85,4 @@ export const verifyEmail = async (verifyEmailToken: string, config: Config): Pro
   } catch {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Email verification failed')
   }
-}
-
-export const loginOrCreateUserWithOauth = async (providerUser: OAuthUserModel): Promise<User> => {
-  const user = await userService.getUserByProviderIdType(
-    providerUser._id,
-    providerUser.providerType
-  )
-  if (user) return user
-  return userService.createOauthUser(providerUser)
-}
-
-export const linkUserWithOauth = async (
-  userId: number,
-  providerUser: OAuthUserModel
-): Promise<void> => {
-  await db().transaction(async (trx) => {
-    // Changed to drizzle syntax
-    try {
-      await trx.select().from(users).where(eq(users.id, userId))
-    } catch {
-      throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate')
-    }
-    await trx.insert(authorisation).values({
-      user_id: userId,
-      provider_user_id: providerUser._id,
-      provider_type: providerUser.providerType
-    })
-  })
-}
-
-export const deleteOauthLink = async (
-  userId: number,
-  provider: AuthProviderType
-): Promise<void> => {
-  await db().transaction(async (trx) => {
-    try {
-      // Select logins using Drizzle syntax
-      const [login] = await trx
-        .select({
-          password: user.password,
-          authorisations: count(authorisation.provider_user_id).as('authorisationsCount')
-        })
-        .from(user)
-        .leftJoin(authorisation, eq(user.id, authorisation.user_id))
-        .where(eq(user.id, userId))
-        .groupBy(user.password)
-
-      const loginsNo = login.password !== null ? login.authorisations + 1 : login.authorisations
-
-      const minLoginMethods = 1
-      if (loginsNo <= minLoginMethods) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Cannot unlink last login method')
-      }
-
-      // Delete from authorisations
-      const result = await trx
-        .delete(authorisation)
-        .where(and(eq(authorisation.user_id, userId), eq(authorisation.provider_type, provider)))
-        .returning()
-
-      if (result.length < 1) {
-        throw new ApiError(httpStatus.BAD_REQUEST, 'Account not linked')
-      }
-    } catch {
-      throw new ApiError(httpStatus.BAD_REQUEST, 'Account not linked')
-    }
-  })
 }

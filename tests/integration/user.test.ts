@@ -1,19 +1,18 @@
 import { faker } from '@faker-js/faker'
-import { env } from 'cloudflare:test'
 import { eq } from 'drizzle-orm'
 import httpStatus from 'http-status'
 import { test, describe, expect, beforeEach } from 'vitest'
+import app from '../../src'
 import { getConfig } from '../../src/config'
 import { tokenTypes } from '../../src/config/tokens'
 import { getAccessToken } from '../fixtures/token.fixture'
 import { MockUser, UserResponse } from '../fixtures/user.fixture'
 import { userOne, userTwo, admin, insertUsers } from '../fixtures/user.fixture'
 import { clearDBTables } from '../utils/clearDBTables'
-import { request } from '../utils/testRequest'
 import db from '@/db'
 import { user } from '@/db/schemas/pg/user'
 
-const config = getConfig(env)
+const config = getConfig(process.env)
 const client = db()
 
 clearDBTables(['user'])
@@ -35,7 +34,7 @@ describe('User routes', () => {
     test('should return 201 and successfully create new user if data is ok', async () => {
       const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -73,7 +72,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin])
       newUser.role = 'admin'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -95,7 +94,7 @@ describe('User routes', () => {
     })
 
     test('should return 401 error if access token is missing', async () => {
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -109,7 +108,7 @@ describe('User routes', () => {
       const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
 
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -124,7 +123,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin])
       newUser.email = 'invalidEmail'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -139,7 +138,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin, userOne])
       newUser.email = userOne.email
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -154,7 +153,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin])
       newUser.password = 'passwo1'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -169,7 +168,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin])
       newUser.password = 'password'
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -181,7 +180,7 @@ describe('User routes', () => {
 
       newUser.password = '1111111'
 
-      const res2 = await request('/v1/users', {
+      const res2 = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -195,7 +194,7 @@ describe('User routes', () => {
     test('should return 400 error if role is neither user nor admin', async () => {
       const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify({
           ...newUser,
@@ -213,7 +212,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin])
       newUser.is_email_verified = true
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -235,7 +234,7 @@ describe('User routes', () => {
         tokenTypes.ACCESS,
         userTwo.is_email_verified
       )
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: {
@@ -251,7 +250,7 @@ describe('User routes', () => {
     test('should return 200 and apply the default query options', async () => {
       const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -272,7 +271,7 @@ describe('User routes', () => {
 
     test('should return 401 if access token is missing', async () => {
       await insertUsers([userOne, userTwo, admin])
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -284,7 +283,7 @@ describe('User routes', () => {
     test('should return 403 if a non-admin is trying to access all users', async () => {
       const ids = await insertUsers([userOne, userTwo, admin])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-      const res = await request('/v1/users', {
+      const res = await app.request('/v1/users', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -297,7 +296,7 @@ describe('User routes', () => {
     test('should correctly apply filter on email field', async () => {
       const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
-      const res = await request(`/v1/users?email=${userOne.email}`, {
+      const res = await app.request(`/v1/users?email=${userOne.email}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -313,7 +312,7 @@ describe('User routes', () => {
     test('should correctly sort the returned array if desc sort param is specified', async () => {
       const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
-      const res = await request('/v1/users?sort_by=id:desc', {
+      const res = await app.request('/v1/users?sort_by=id:desc', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -331,7 +330,7 @@ describe('User routes', () => {
     test('should correctly sort the returned array if asc sort param is specified', async () => {
       const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
-      const res = await request('/v1/users?sort_by=id:asc', {
+      const res = await app.request('/v1/users?sort_by=id:asc', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -349,7 +348,7 @@ describe('User routes', () => {
     test('should limit returned array if limit param is specified', async () => {
       const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
-      const res = await request('/v1/users?limit=2', {
+      const res = await app.request('/v1/users?limit=2', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -366,7 +365,7 @@ describe('User routes', () => {
     test('should return the correct page if page and limit params are specified', async () => {
       const ids = await insertUsers([userOne, userTwo, admin])
       const adminAccessToken = await getAccessToken(ids[2], admin.role, config.jwt)
-      const res = await request('/v1/users?limit=2&page=1', {
+      const res = await app.request('/v1/users?limit=2&page=1', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -388,7 +387,7 @@ describe('User routes', () => {
         tokenTypes.ACCESS,
         userTwo.is_email_verified
       )
-      const res = await request('/v1/users?limit=2&page=1', {
+      const res = await app.request('/v1/users?limit=2&page=1', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -403,7 +402,7 @@ describe('User routes', () => {
     test('should return 200 and the user object if data is ok', async () => {
       const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -424,7 +423,7 @@ describe('User routes', () => {
 
     test('should return 401 error if access token is missing', async () => {
       const ids = await insertUsers([userOne])
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -436,7 +435,7 @@ describe('User routes', () => {
     test('should return 403 error if user is trying to get another user', async () => {
       const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-      const res = await request(`/v1/users/${ids[1]}`, {
+      const res = await app.request(`/v1/users/${ids[1]}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -449,7 +448,7 @@ describe('User routes', () => {
     test('should return 200 and user if admin is trying to get another user', async () => {
       const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -462,7 +461,7 @@ describe('User routes', () => {
     test('should return 400 error if userId is not a number', async () => {
       const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users/hello1234', {
+      const res = await app.request('/v1/users/hello1234', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -475,7 +474,7 @@ describe('User routes', () => {
     test('should return 404 error if user is not found', async () => {
       const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users/1221212', {
+      const res = await app.request('/v1/users/1221212', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -494,7 +493,7 @@ describe('User routes', () => {
         tokenTypes.ACCESS,
         userTwo.is_email_verified
       )
-      const res = await request('/v1/users/1221212', {
+      const res = await app.request('/v1/users/1221212', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -509,7 +508,7 @@ describe('User routes', () => {
     test('should return 204 if data is ok', async () => {
       const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -525,7 +524,7 @@ describe('User routes', () => {
 
     test('should return 401 error if access token is missing', async () => {
       const ids = await insertUsers([userOne])
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -537,7 +536,7 @@ describe('User routes', () => {
     test('should return 403 error if user is trying to delete another user', async () => {
       const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-      const res = await request(`/v1/users/${ids[1]}`, {
+      const res = await app.request(`/v1/users/${ids[1]}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -550,7 +549,7 @@ describe('User routes', () => {
     test('should return 204 if admin is trying to delete another user', async () => {
       const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -563,7 +562,7 @@ describe('User routes', () => {
     test('should return 400 error if userId is not a number', async () => {
       const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
-      const res = await request('/v1/users/iamnotanumber', {
+      const res = await app.request('/v1/users/iamnotanumber', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -576,7 +575,7 @@ describe('User routes', () => {
     test('should return 404 error if user already is not found', async () => {
       const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
-      const res = await request('/v1/users/12345', {
+      const res = await app.request('/v1/users/12345', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -595,7 +594,7 @@ describe('User routes', () => {
         tokenTypes.ACCESS,
         userTwo.is_email_verified
       )
-      const res = await request('/v1/users/12345', {
+      const res = await app.request('/v1/users/12345', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -615,7 +614,7 @@ describe('User routes', () => {
         email: faker.internet.email().toLowerCase()
       }
 
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -652,7 +651,7 @@ describe('User routes', () => {
     test('should return 401 error if access token is missing', async () => {
       const ids = await insertUsers([userOne])
       const updateBody = { name: faker.person.fullName() }
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -666,7 +665,7 @@ describe('User routes', () => {
       const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
-      const res = await request(`/v1/users/${ids[1]}`, {
+      const res = await app.request(`/v1/users/${ids[1]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -681,7 +680,7 @@ describe('User routes', () => {
       const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -696,7 +695,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
-      const res = await request('/v1/users/123123222', {
+      const res = await app.request('/v1/users/123123222', {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -711,7 +710,7 @@ describe('User routes', () => {
       const ids = await insertUsers([admin])
       const adminAccessToken = await getAccessToken(ids[0], admin.role, config.jwt)
       const updateBody = { name: faker.person.fullName() }
-      const res = await request('/v1/users/notanumber123', {
+      const res = await app.request('/v1/users/notanumber123', {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -726,7 +725,7 @@ describe('User routes', () => {
       const ids = await insertUsers([userOne, admin])
       const adminAccessToken = await getAccessToken(ids[1], admin.role, config.jwt)
       const updateBody = { email: 'invalidEmail' }
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -741,7 +740,7 @@ describe('User routes', () => {
       const ids = await insertUsers([userOne, userTwo])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = { email: userTwo.email }
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -756,7 +755,7 @@ describe('User routes', () => {
       const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = { email: userOne.email }
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -770,7 +769,7 @@ describe('User routes', () => {
       const ids = await insertUsers([userOne])
       const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
       const updateBody = {}
-      const res = await request(`/v1/users/${ids[0]}`, {
+      const res = await app.request(`/v1/users/${ids[0]}`, {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {
@@ -791,7 +790,7 @@ describe('User routes', () => {
         userTwo.is_email_verified
       )
       const updateBody = {}
-      const res = await request('/v1/users/1234', {
+      const res = await app.request('/v1/users/1234', {
         method: 'PATCH',
         body: JSON.stringify(updateBody),
         headers: {

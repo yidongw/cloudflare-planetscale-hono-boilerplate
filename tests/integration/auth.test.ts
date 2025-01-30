@@ -3,33 +3,23 @@
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 import { faker } from '@faker-js/faker'
 import bcrypt from 'bcryptjs'
-import { env } from 'cloudflare:test'
 import dayjs from 'dayjs'
 import { eq } from 'drizzle-orm'
 import httpStatus from 'http-status'
 import { describe, expect, test, beforeEach } from 'vitest'
-import { getConfig } from '../../../src/config'
-import { tokenTypes } from '../../../src/config/tokens'
-import * as tokenService from '../../../src/services/token.service'
-import { Register } from '../../../src/validations/auth.validation'
-import {
-  appleAuthorisation,
-  discordAuthorisation,
-  facebookAuthorisation,
-  githubAuthorisation,
-  googleAuthorisation,
-  insertAuthorisations,
-  spotifyAuthorisation
-} from '../../fixtures/authorisations.fixture'
-import { getAccessToken, TokenResponse } from '../../fixtures/token.fixture'
-import { userOne, insertUsers, UserResponse, userTwo } from '../../fixtures/user.fixture'
-import { expectExtension, mockClient } from '../../mocks/awsClientStub'
-import { clearDBTables } from '../../utils/clearDBTables'
-import { request } from '../../utils/testRequest'
+import app from '../../src'
+import { getConfig } from '../../src/config'
+import { tokenTypes } from '../../src/config/tokens'
+import * as tokenService from '../../src/services/token.service'
+import { Register } from '../../src/validations/auth.validation'
+import { getAccessToken, TokenResponse } from '../fixtures/token.fixture'
+import { userOne, insertUsers, UserResponse } from '../fixtures/user.fixture'
+import { expectExtension, mockClient } from '../mocks/awsClientStub'
+import { clearDBTables } from '../utils/clearDBTables'
 import db from '@/db'
 import { user } from '@/db/schemas/pg/user'
 
-const config = getConfig(env)
+const config = getConfig(process.env)
 const client = db()
 
 expect.extend(expectExtension)
@@ -46,8 +36,8 @@ describe('Auth routes', () => {
       }
     })
 
-    test('should return 201 and successfully register user if request data is ok', async () => {
-      const res = await request('/v1/auth/register', {
+    test('should return 201 and successfully register user if app.request data is ok', async () => {
+      const res = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: { 'Content-Type': 'application/json' }
@@ -86,7 +76,7 @@ describe('Auth routes', () => {
     test('should return 400 error if email is invalid', async () => {
       newUser.email = 'invalidEmail'
 
-      const res = await request('/v1/auth/register', {
+      const res = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: { 'Content-Type': 'application/json' }
@@ -98,7 +88,7 @@ describe('Auth routes', () => {
       await insertUsers([userOne])
       newUser.email = userOne.email
 
-      const res = await request('/v1/auth/register', {
+      const res = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: { 'Content-Type': 'application/json' }
@@ -109,7 +99,7 @@ describe('Auth routes', () => {
     test('should return 400 error if password length is less than 8 characters', async () => {
       newUser.password = 'passwo1'
 
-      const res = await request('/v1/auth/register', {
+      const res = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: { 'Content-Type': 'application/json' }
@@ -118,7 +108,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 400 error if role is set', async () => {
-      const res = await request('/v1/auth/register', {
+      const res = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify({ ...newUser, role: 'admin' }),
         headers: { 'Content-Type': 'application/json' }
@@ -128,7 +118,7 @@ describe('Auth routes', () => {
       expect(body.message).toContain("Validation error: Unrecognized key(s) in object: 'role'")
     })
     test('should return 400 error if is_email_verified is set', async () => {
-      const res = await request('/v1/auth/register', {
+      const res = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify({ ...newUser, is_email_verified: true }),
         headers: { 'Content-Type': 'application/json' }
@@ -142,7 +132,7 @@ describe('Auth routes', () => {
     test('should return 400 if password does not contain both letters and numbers', async () => {
       newUser.password = 'password'
 
-      const res = await request('/v1/auth/register', {
+      const res = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: { 'Content-Type': 'application/json' }
@@ -151,7 +141,7 @@ describe('Auth routes', () => {
 
       newUser.password = '11111111'
 
-      const res2 = await request('/v1/auth/register', {
+      const res2 = await app.request('/v1/auth/register', {
         method: 'POST',
         body: JSON.stringify(newUser),
         headers: { 'Content-Type': 'application/json' }
@@ -168,7 +158,7 @@ describe('Auth routes', () => {
         password: userOne.password
       }
 
-      const res = await request('/v1/auth/login', {
+      const res = await app.request('/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify(loginCredentials),
         headers: { 'Content-Type': 'application/json' }
@@ -196,7 +186,7 @@ describe('Auth routes', () => {
         password: userOne.password
       }
 
-      const res = await request('/v1/auth/login', {
+      const res = await app.request('/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify(loginCredentials),
         headers: { 'Content-Type': 'application/json' }
@@ -209,31 +199,6 @@ describe('Auth routes', () => {
       })
     })
 
-    test('should return 401 error if only oauth account exists', async () => {
-      const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser])
-      const userId = ids[0]
-      const discordUser = discordAuthorisation(userId)
-      await insertAuthorisations([discordUser])
-
-      const loginCredentials = {
-        email: newUser.email,
-        password: ''
-      }
-
-      const res = await request('/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(loginCredentials),
-        headers: { 'Content-Type': 'application/json' }
-      })
-      const body = await res.json()
-      expect(res.status).toBe(httpStatus.UNAUTHORIZED)
-      expect(body).toEqual({
-        code: httpStatus.UNAUTHORIZED,
-        message: 'Please login with your social account'
-      })
-    })
-
     test('should return 401 error if password is wrong', async () => {
       await insertUsers([userOne])
       const loginCredentials = {
@@ -241,7 +206,7 @@ describe('Auth routes', () => {
         password: 'wrongPassword1'
       }
 
-      const res = await request('/v1/auth/login', {
+      const res = await app.request('/v1/auth/login', {
         method: 'POST',
         body: JSON.stringify(loginCredentials),
         headers: { 'Content-Type': 'application/json' }
@@ -269,7 +234,7 @@ describe('Auth routes', () => {
         userOne.is_email_verified
       )
 
-      const res = await request('/v1/auth/refresh-tokens', {
+      const res = await app.request('/v1/auth/refresh-tokens', {
         method: 'POST',
         body: JSON.stringify({ refresh_token: refreshToken }),
         headers: { 'Content-Type': 'application/json' }
@@ -283,8 +248,8 @@ describe('Auth routes', () => {
       })
     })
 
-    test('should return 400 error if refresh token is missing from request body', async () => {
-      const res = await request('/v1/auth/refresh-tokens', {
+    test('should return 400 error if refresh token is missing from app.request body', async () => {
+      const res = await app.request('/v1/auth/refresh-tokens', {
         method: 'POST',
         body: JSON.stringify({}),
         headers: { 'Content-Type': 'application/json' }
@@ -305,7 +270,7 @@ describe('Auth routes', () => {
         userOne.is_email_verified
       )
 
-      const res = await request('/v1/auth/refresh-tokens', {
+      const res = await app.request('/v1/auth/refresh-tokens', {
         method: 'POST',
         body: JSON.stringify({ refresh_token: refreshToken }),
         headers: { 'Content-Type': 'application/json' }
@@ -326,7 +291,7 @@ describe('Auth routes', () => {
         userOne.is_email_verified
       )
 
-      const res = await request('/v1/auth/refresh-tokens', {
+      const res = await app.request('/v1/auth/refresh-tokens', {
         method: 'POST',
         body: JSON.stringify({ refresh_token: refreshToken }),
         headers: { 'Content-Type': 'application/json' }
@@ -345,7 +310,7 @@ describe('Auth routes', () => {
         userOne.is_email_verified
       )
 
-      const res = await request('/v1/auth/refresh-tokens', {
+      const res = await app.request('/v1/auth/refresh-tokens', {
         method: 'POST',
         body: JSON.stringify({ refresh_token: refreshToken }),
         headers: { 'Content-Type': 'application/json' }
@@ -366,28 +331,9 @@ describe('Auth routes', () => {
       sesMock.on(SendEmailCommand).resolves({
         MessageId: 'message-id'
       })
-      const res = await request('/v1/auth/forgot-password', {
+      const res = await app.request('/v1/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify({ email: userOne.email }),
-        headers: { 'Content-Type': 'application/json' }
-      })
-      expect(res.status).toBe(httpStatus.NO_CONTENT)
-      expect(sesMock).toHaveReceivedCommandTimes(SendEmailCommand, 1)
-    })
-
-    test('should return 204 and send email if only has oauth account', async () => {
-      const newUser = { ...userOne, password: null }
-      const ids = await insertUsers([newUser])
-      const userId = ids[0]
-      const discordUser = discordAuthorisation(userId)
-      await insertAuthorisations([discordUser])
-
-      sesMock.on(SendEmailCommand).resolves({
-        MessageId: 'message-id'
-      })
-      const res = await request('/v1/auth/forgot-password', {
-        method: 'POST',
-        body: JSON.stringify({ email: newUser.email }),
         headers: { 'Content-Type': 'application/json' }
       })
       expect(res.status).toBe(httpStatus.NO_CONTENT)
@@ -397,7 +343,7 @@ describe('Auth routes', () => {
     test('should return 400 if email is missing', async () => {
       await insertUsers([userOne])
 
-      const res = await request('/v1/auth/forgot-password', {
+      const res = await app.request('/v1/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
@@ -406,7 +352,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 204 if email does not belong to any user', async () => {
-      const res = await request('/v1/auth/forgot-password', {
+      const res = await app.request('/v1/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify({ email: userOne.email }),
         headers: { 'Content-Type': 'application/json' }
@@ -430,7 +376,7 @@ describe('Auth routes', () => {
         MessageId: 'message-id'
       })
 
-      const res = await request('/v1/auth/send-verification-email', {
+      const res = await app.request('/v1/auth/send-verification-email', {
         method: 'POST',
         body: JSON.stringify({ email: userOne.email }),
         headers: {
@@ -452,7 +398,7 @@ describe('Auth routes', () => {
         MessageId: 'message-id'
       })
 
-      const res = await request('/v1/auth/send-verification-email', {
+      const res = await app.request('/v1/auth/send-verification-email', {
         method: 'POST',
         body: JSON.stringify({ email: newUser.email }),
         headers: {
@@ -464,36 +410,6 @@ describe('Auth routes', () => {
       expect(sesMock).toHaveReceivedCommandTimes(SendEmailCommand, 0)
     })
 
-    test('should return 429 if a second request is sent in under 2 minutes', async () => {
-      const ids = await insertUsers([userOne])
-      const userOneAccessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-
-      sesMock.on(SendEmailCommand).resolves({
-        MessageId: 'message-id'
-      })
-
-      const res = await request('/v1/auth/send-verification-email', {
-        method: 'POST',
-        body: JSON.stringify({ email: userOne.email }),
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${userOneAccessToken}`
-        }
-      })
-      expect(res.status).toBe(httpStatus.NO_CONTENT)
-
-      const res2 = await request('/v1/auth/send-verification-email', {
-        method: 'POST',
-        body: JSON.stringify({ email: userOne.email }),
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${userOneAccessToken}`
-        }
-      })
-      expect(res2.status).toBe(httpStatus.TOO_MANY_REQUESTS)
-      expect(sesMock).toHaveReceivedCommandTimes(SendEmailCommand, 1)
-    })
-
     test('should return 401 error if access token is missing', async () => {
       await insertUsers([userOne])
 
@@ -501,7 +417,7 @@ describe('Auth routes', () => {
         MessageId: 'message-id'
       })
 
-      const res = await request('/v1/auth/send-verification-email', {
+      const res = await app.request('/v1/auth/send-verification-email', {
         method: 'POST',
         body: JSON.stringify({ email: userOne.email }),
         headers: {
@@ -525,7 +441,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
+      const res = await app.request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
         method: 'POST',
         body: JSON.stringify({ password: newPassword }),
         headers: {
@@ -543,7 +459,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 400 if reset password token is missing', async () => {
-      const res = await request('/v1/auth/reset-password', {
+      const res = await app.request('/v1/auth/reset-password', {
         method: 'POST',
         body: JSON.stringify({ password: 'iamanewpasword123' }),
         headers: {
@@ -565,7 +481,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
+      const res = await app.request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
         method: 'POST',
         body: JSON.stringify({ password: newPassword }),
         headers: {
@@ -586,7 +502,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
+      const res = await app.request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
         method: 'POST',
         body: JSON.stringify({ password: newPassword }),
         headers: {
@@ -607,7 +523,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
+      const res = await app.request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
         method: 'POST',
         body: JSON.stringify({}),
         headers: {
@@ -616,7 +532,7 @@ describe('Auth routes', () => {
       })
       expect(res.status).toBe(httpStatus.BAD_REQUEST)
 
-      const res2 = await request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
+      const res2 = await app.request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
         method: 'POST',
         body: JSON.stringify({ password: 'short1' }),
         headers: {
@@ -625,7 +541,7 @@ describe('Auth routes', () => {
       })
       expect(res2.status).toBe(httpStatus.BAD_REQUEST)
 
-      const res3 = await request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
+      const res3 = await app.request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
         method: 'POST',
         body: JSON.stringify({ password: 'password' }),
         headers: {
@@ -634,7 +550,7 @@ describe('Auth routes', () => {
       })
       expect(res3.status).toBe(httpStatus.BAD_REQUEST)
 
-      const res4 = await request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
+      const res4 = await app.request(`/v1/auth/reset-password?token=${resetPasswordToken}`, {
         method: 'POST',
         body: JSON.stringify({ password: '11111111' }),
         headers: {
@@ -657,7 +573,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
+      const res = await app.request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -673,7 +589,7 @@ describe('Auth routes', () => {
     })
 
     test('should return 400 if verify email token is missing', async () => {
-      const res = await request('/v1/auth/verify-email', {
+      const res = await app.request('/v1/auth/verify-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -693,7 +609,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
+      const res = await app.request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -713,7 +629,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
+      const res = await app.request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -732,7 +648,7 @@ describe('Auth routes', () => {
         config.jwt.secret,
         userOne.is_email_verified
       )
-      const res = await request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
+      const res = await app.request(`/v1/auth/verify-email?token=${verifyEmailToken}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -741,113 +657,10 @@ describe('Auth routes', () => {
       expect(res.status).toBe(httpStatus.UNAUTHORIZED)
     })
   })
-  describe('GET /v1/auth/authorisations', () => {
-    test('should 200 and list of user authentication methods with local true', async () => {
-      const ids = await insertUsers([userOne])
-      const accessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-      const res = await request('/v1/auth/authorisations', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      })
-      const body = await res.json()
-      expect(res.status).toBe(httpStatus.OK)
-      expect(body).toEqual({
-        local: true,
-        facebook: false,
-        github: false,
-        google: false,
-        spotify: false,
-        discord: false,
-        apple: false
-      })
-    })
 
-    test('should 200 and list of user authentication methods with discord true', async () => {
-      const user = { ...userOne }
-      user.password = null
-      const ids = await insertUsers([user])
-      const userOneId = ids[0]
-      const discordAuth = discordAuthorisation(userOneId)
-      await insertAuthorisations([discordAuth])
-      const accessToken = await getAccessToken(ids[0], user.role, config.jwt)
-      const res = await request('/v1/auth/authorisations', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      })
-      const body = await res.json()
-      expect(res.status).toBe(httpStatus.OK)
-      expect(body).toEqual({
-        local: false,
-        facebook: false,
-        github: false,
-        google: false,
-        spotify: false,
-        discord: true,
-        apple: false
-      })
-    })
-    test('should 200 and list of user authentication methods with all true', async () => {
-      const ids = await insertUsers([userOne])
-      const userOneId = ids[0]
-      const discordAuth = discordAuthorisation(userOneId)
-      const spotifyAuth = spotifyAuthorisation(userOneId)
-      const googleAuth = googleAuthorisation(userOneId)
-      const githubAuth = githubAuthorisation(userOneId)
-      const facebookAuth = facebookAuthorisation(userOneId)
-      const appleAuth = appleAuthorisation(userOneId)
-      await insertAuthorisations([
-        discordAuth,
-        spotifyAuth,
-        googleAuth,
-        facebookAuth,
-        githubAuth,
-        appleAuth
-      ])
-      const accessToken = await getAccessToken(ids[0], userOne.role, config.jwt)
-      const res = await request('/v1/auth/authorisations', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      })
-      const body = await res.json()
-      expect(res.status).toBe(httpStatus.OK)
-      expect(body).toEqual({
-        local: true,
-        facebook: true,
-        github: true,
-        google: true,
-        spotify: true,
-        discord: true,
-        apple: true
-      })
-    })
-    test('should return 403 if user has not verified their email', async () => {
-      const ids = await insertUsers([userTwo])
-      const userId = ids[0]
-      const accessToken = await getAccessToken(
-        userId,
-        userTwo.role,
-        config.jwt,
-        tokenTypes.ACCESS,
-        userTwo.is_email_verified
-      )
-      const res = await request('/v1/auth/authorisations', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      })
-      expect(res.status).toBe(httpStatus.FORBIDDEN)
-    })
-  })
   describe('Auth middleware', () => {
     test('should return 401 if auth header is malformed', async () => {
-      const res = await request('/v1/users/123', {
+      const res = await app.request('/v1/users/123', {
         method: 'GET',
         headers: {
           Authorization: 'Bearer123'

@@ -1,7 +1,7 @@
 import jwt, { type JwtPayload } from '@tsndr/cloudflare-worker-jwt'
 import { type MiddlewareHandler } from 'hono'
+import { env } from 'hono/adapter'
 import httpStatus from 'http-status'
-import { type Environment } from '../../bindings'
 import { getConfig } from '../config'
 import { roleRights, type Permission, type Role } from '../config/roles'
 import { tokenTypes } from '../config/tokens'
@@ -21,11 +21,11 @@ const authenticate = async (jwtToken: string, secret: string) => {
 }
 
 export const auth =
-  (...requiredRights: Permission[]): MiddlewareHandler<Environment> =>
+  (...requiredRights: Permission[]): MiddlewareHandler =>
   async (c, next) => {
     const credentials = c.req.raw.headers.get('Authorization')
 
-    const config = getConfig(c.env)
+    const config = getConfig(env(c))
     if (!credentials) {
       throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate')
     }

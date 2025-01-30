@@ -1,9 +1,7 @@
 import { eq, and, sql } from 'drizzle-orm'
 import { asc, desc } from 'drizzle-orm'
 import httpStatus from 'http-status'
-import { OAuthUserModel } from '../models/oauth/oauthBase.model'
 import { User, type UserTable } from '../models/user.model'
-import { type AuthProviderType } from '../types/oauth.types'
 import { ApiError } from '../utils/ApiError'
 import { type CreateUser, type UpdateUser } from '../validations/user.validation'
 import db from '@/db'
@@ -27,39 +25,6 @@ export const createUser = async (userBody: CreateUser): Promise<User> => {
     return user!
   } catch {
     throw new ApiError(httpStatus.BAD_REQUEST, 'User already exists')
-  }
-}
-
-export const createOauthUser = async (providerUser: OAuthUserModel): Promise<User> => {
-  try {
-    await db().transaction(async (tx) => {
-      const [user] = await tx
-        .insert(users)
-        .values({
-          name: providerUser._name,
-          email: providerUser._email,
-          is_email_verified: true,
-          password: null,
-          role: 'user'
-        })
-        .returning({ id: users.id })
-
-      await tx.insert(authorisations).values({
-        user_id: user.id,
-        provider_type: providerUser.providerType,
-        provider_user_id: providerUser._id
-      })
-
-      return [user]
-    })
-
-    const user = await getUserByProviderIdType(providerUser._id, providerUser.providerType)
-    return new User(user as User)
-  } catch {
-    throw new ApiError(
-      httpStatus.FORBIDDEN,
-      `Cannot signup with ${providerUser.providerType}, user already exists with that email`
-    )
   }
 }
 
@@ -94,10 +59,7 @@ export const getUserByEmail = async (email: string): Promise<User | undefined> =
   return user ? new User(user) : undefined
 }
 
-export const getUserByProviderIdType = async (
-  id: string,
-  type: AuthProviderType
-): Promise<User | undefined> => {
+export const getUserByProviderIdType = async (id: string, type: any): Promise<User | undefined> => {
   const [user] = await db()
     .select()
     .from(users)
@@ -147,19 +109,13 @@ export const getAuthorisations = async (userId: number) => {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate')
   }
   const response = {
-    local: auths[0].user.password !== null ? true : false,
-    google: false,
-    facebook: false,
-    discord: false,
-    spotify: false,
-    github: false,
-    apple: false
+    local: auths[0].user.password !== null ? true : false
   }
   for (const auth of auths) {
     if (auth.authorisation === null || auth.authorisation.provider_type === null) {
       continue
     }
-    response[auth.authorisation.provider_type as AuthProviderType] = true
+    ;(response as any)[auth.authorisation.provider_type as any] = true
   }
   return response
 }

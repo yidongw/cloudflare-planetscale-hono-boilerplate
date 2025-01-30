@@ -1,28 +1,11 @@
-# RESTful API Cloudflare Workers Boilerplate
+# RESTful API Boilerplate
 
-A boilerplate/starter project for quickly building RESTful APIs using
-[Cloudflare Workers](https://workers.cloudflare.com/), [Hono](https://honojs.dev/), and
-[PlanetScale](https://planetscale.com/). Inspired by
+A boilerplate/starter project for quickly building RESTful APIs using [Hono](https://honojs.dev/), and Drizzle. Inspired by
 [node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate) by hagopj13.
-
-## Quick Start
-
-To create a project, simply run:
-
-```bash
-npx create-cf-planetscale-app <project-name>
-```
-
-Or
-
-```bash
-npm init cf-planetscale-app <project-name>
-```
 
 ## Table of Contents
 
-- [RESTful API Cloudflare Workers Boilerplate](#restful-api-cloudflare-workers-boilerplate)
-  - [Quick Start](#quick-start)
+- [RESTful API Boilerplate](#restful-api-boilerplate)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Commands](#commands)
@@ -34,12 +17,10 @@ npm init cf-planetscale-app <project-name>
   - [Rate Limiting](#rate-limiting)
   - [Contributing](#contributing)
   - [Inspirations](#inspirations)
-  - [License](#license)
 
 ## Features
 
-- **SQL database**: [PlanetScale](https://planetscale.com/) using
-  [Kysely](https://github.com/koskimas/kysely) as a type-safe SQl query builder
+- **SQL database**: Drizzle
 - **Authentication and authorization**: using JWT
 - **Validation**: request data validation using [Zod](https://github.com/colinhacks/zod)
 - **Logging**: using [Sentry](https://sentry.io/)
@@ -95,7 +76,7 @@ npm run migrate
 Run a specific test
 
 ```bash
-yarn vitest run tests/integration/auth/oauth/apple.test.ts
+bunx vitest run tests/integration/index.test.ts
 ```
 
 ## Commands
@@ -107,6 +88,8 @@ npm run dev
 ```
 
 Testing:
+
+TODO: when do npm run tests, they will fail
 
 ```bash
 # run all tests
@@ -130,29 +113,6 @@ npm run prettier
 
 # fix prettier errors
 npm run prettier:fix
-```
-
-Migrations:
-
-To deploy to production you must first deploy to a test/dev branch on Planetscale and then create
-a deploy request and merge the schema into production.
-
-```bash
-# run all migrations for testing
-npm run migrate:test:latest
-
-# remove all migrations for testing
-npm run migrate:test:none
-
-# revert last migration for testing
-npm run migrate:test:down
-```
-
-Deploy to Cloudflare:
-
-```bash
-npm run deploy
-npm run deploy
 ```
 
 ## Error Handling
@@ -188,7 +148,7 @@ validation function:
 
 ```javascript
 const getUsers: Handler<{ Bindings: Bindings }> = async (c) => {
-  const config = getConfig(c.env)
+  const config = getConfig(env(c))
   const queryParse = c.req.query()
   const query = userValidation.getUsers.parse(queryParse)
   const filter = { email: query.email }
@@ -276,11 +236,10 @@ To apply rate limits for certain routes, you can use the `rateLimit` middleware.
 
 ```javascript
 import { Hono } from 'hono'
-import { Environment } from '../../bindings'
 import { auth } from '../middlewares/auth'
 import { rateLimit } from '../middlewares/rateLimiter'
 
-export const route = new Hono<Environment>()
+export const route = new Hono()
 
 const twoMinutes = 120
 const oneRequest = 1
@@ -319,7 +278,3 @@ Contributions are more than welcome!
 ## Inspirations
 
 - [hagopj13/node-express-boilerplate](https://github.com/hagopj13/node-express-boilerplate)
-
-## License
-
-[MIT](LICENSE)

@@ -3,13 +3,14 @@ import { config } from '@/config'
 
 let instance: pino.Logger
 /* eslint no-console: "off" */
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export const logger = () => {
   if (instance) {
     return instance
   }
   instance = pino({
     timestamp: pino.stdTimeFunctions.isoTime,
+    // browser setting is for cf worker
     browser: {
       asObject: true,
       serialize: true,
@@ -30,7 +31,7 @@ export const logger = () => {
           }
 
           console.log(logMessage)
-        } else {
+        } else if (config().ENV === 'production') {
           console.log(JSON.stringify(o))
         }
       }

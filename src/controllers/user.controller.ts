@@ -1,19 +1,17 @@
 import { type Handler } from 'hono'
 import httpStatus from 'http-status'
-import { type Environment } from '../../bindings'
 import * as userService from '../services/user.service'
 import { ApiError } from '../utils/ApiError'
-import { logger } from '../utils/logger'
 import * as userValidation from '../validations/user.validation'
 
-export const createUser: Handler<Environment> = async (c) => {
+export const createUser: Handler = async (c) => {
   const bodyParse = await c.req.json()
   const body = await userValidation.createUser.parseAsync(bodyParse)
   const user = await userService.createUser(body)
   return c.json(user, httpStatus.CREATED)
 }
 
-export const getUsers: Handler<Environment> = async (c) => {
+export const getUsers: Handler = async (c) => {
   const queryParse = c.req.query()
   const query = userValidation.getUsers.parse(queryParse)
 
@@ -23,11 +21,10 @@ export const getUsers: Handler<Environment> = async (c) => {
 
   const result = await userService.queryUsers(filter, options)
 
-  logger().error(new Error('test error'), 'TEST ERROR')
   return c.json(result, httpStatus.OK)
 }
 
-export const getUser: Handler<Environment> = async (c) => {
+export const getUser: Handler = async (c) => {
   const paramsParse = c.req.param()
   const params = userValidation.getUser.parse(paramsParse)
   const user = await userService.getUserById(params.userId)
@@ -37,7 +34,7 @@ export const getUser: Handler<Environment> = async (c) => {
   return c.json(user, httpStatus.OK)
 }
 
-export const updateUser: Handler<Environment> = async (c) => {
+export const updateUser: Handler = async (c) => {
   const paramsParse = c.req.param()
   const bodyParse = await c.req.json()
   const { params, body } = userValidation.updateUser.parse({ params: paramsParse, body: bodyParse })
@@ -45,7 +42,7 @@ export const updateUser: Handler<Environment> = async (c) => {
   return c.json(user, httpStatus.OK)
 }
 
-export const deleteUser: Handler<Environment> = async (c) => {
+export const deleteUser: Handler = async (c) => {
   const paramsParse = c.req.param()
   const params = userValidation.deleteUser.parse(paramsParse)
   await userService.deleteUserById(params.userId)

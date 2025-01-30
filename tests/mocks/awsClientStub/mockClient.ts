@@ -33,7 +33,7 @@ type InstanceOrClassType<T> = T | ClassType<T>
 /**
  * Type guard to differentiate `Client` instance from a type.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 const isClientInstance = <TClient extends Client<any, any, any>>(
   obj: InstanceOrClassType<TClient>
 ): obj is TClient => (obj as TClient).send !== undefined

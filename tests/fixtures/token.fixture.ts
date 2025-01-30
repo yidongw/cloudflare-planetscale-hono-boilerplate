@@ -1,5 +1,4 @@
 import dayjs from 'dayjs'
-import { Config } from '../../src/config'
 import { Role } from '../../src/config/roles'
 import { tokenTypes, TokenType } from '../../src/config/tokens'
 import * as tokenService from '../../src/services/token.service'
@@ -18,7 +17,7 @@ export interface TokenResponse {
 export const getAccessToken = async (
   userId: number,
   role: Role,
-  jwtConfig: Config['jwt'],
+  jwtConfig: any,
   type: TokenType = tokenTypes.ACCESS,
   isEmailVerified = true
 ) => {

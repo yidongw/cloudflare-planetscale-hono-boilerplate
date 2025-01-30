@@ -1,16 +1,9 @@
 import { Hono } from 'hono'
-import { Environment } from '../../bindings'
 import * as authController from '../controllers/auth/auth.controller'
-import * as appleController from '../controllers/auth/oauth/apple.controller'
-import * as discordController from '../controllers/auth/oauth/discord.controller'
-import * as facebookController from '../controllers/auth/oauth/facebook.controller'
-import * as githubController from '../controllers/auth/oauth/github.controller'
-import * as googleController from '../controllers/auth/oauth/google.controller'
-import * as spotifyController from '../controllers/auth/oauth/spotify.controller'
 import { auth } from '../middlewares/auth'
 // import { rateLimit } from '../middlewares/rateLimiter'
 
-export const route = new Hono<Environment>()
+export const route = new Hono()
 
 // const twoMinutes = 120
 // const oneRequest = 1
@@ -28,31 +21,3 @@ route.post(
 )
 route.post('/verify-email', authController.verifyEmail)
 route.get('/authorisations', auth(), authController.getAuthorisations)
-
-route.get('/github/redirect', githubController.githubRedirect)
-route.get('/google/redirect', googleController.googleRedirect)
-route.get('/spotify/redirect', spotifyController.spotifyRedirect)
-route.get('/discord/redirect', discordController.discordRedirect)
-route.get('/facebook/redirect', facebookController.facebookRedirect)
-route.get('/apple/redirect', appleController.appleRedirect)
-
-route.post('/github/callback', githubController.githubCallback)
-route.post('/spotify/callback', spotifyController.spotifyCallback)
-route.post('/discord/callback', discordController.discordCallback)
-route.post('/google/callback', googleController.googleCallback)
-route.post('/facebook/callback', facebookController.facebookCallback)
-route.post('/apple/callback', appleController.appleCallback)
-
-route.post('/github/:userId', githubController.linkGithub)
-route.post('/spotify/:userId', spotifyController.linkSpotify)
-route.post('/discord/:userId', discordController.linkDiscord)
-route.post('/google/:userId', googleController.linkGoogle)
-route.post('/facebook/:userId', facebookController.linkFacebook)
-route.post('/apple/:userId', appleController.linkApple)
-
-route.delete('/github/:userId', auth('manageUsers'), githubController.deleteGithubLink)
-route.delete('/spotify/:userId', auth('manageUsers'), spotifyController.deleteSpotifyLink)
-route.delete('/discord/:userId', auth('manageUsers'), discordController.deleteDiscordLink)
-route.delete('/google/:userId', auth('manageUsers'), googleController.deleteGoogleLink)
-route.delete('/facebook/:userId', auth('manageUsers'), facebookController.deleteFacebookLink)
-route.delete('/apple/:userId', auth('manageUsers'), appleController.deleteAppleLink)

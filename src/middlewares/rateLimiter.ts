@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { Context, MiddlewareHandler } from 'hono'
+import { env } from 'hono/adapter'
 import httpStatus from 'http-status'
-import { Environment } from '../../bindings'
 import { ApiError } from '../utils/ApiError'
 
 const fakeDomain = 'http://rate-limiter.com/'
@@ -30,12 +30,12 @@ const setRateLimitHeaders = (
   c.header('X-RateLimit-Policy', `${limit};w=${interval};comment="Sliding window"`)
 }
 
-export const rateLimit = (interval: number, limit: number): MiddlewareHandler<Environment> => {
+export const rateLimit = (interval: number, limit: number): MiddlewareHandler => {
   return async (c, next) => {
     const key = getRateLimitKey(c)
     const endpoint = new URL(c.req.url).pathname
-    const id = c.env.RATE_LIMITER.idFromName(key)
-    const rateLimiter = c.env.RATE_LIMITER.get(id)
+    const id = env(c).RATE_LIMITER.idFromName(key)
+    const rateLimiter = env(c).RATE_LIMITER.get(id)
     const cache = await caches.open('rate-limiter')
     const cacheKey = getCacheKey(endpoint, key, limit, interval)
     const cached = await cache.match(cacheKey)

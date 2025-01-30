@@ -1,6 +1,6 @@
 import { Handler } from 'hono'
+import { env } from 'hono/adapter'
 import httpStatus from 'http-status'
-import { Environment } from '../../../bindings'
 import { getConfig } from '../../config'
 import * as authService from '../../services/auth.service'
 import * as emailService from '../../services/email.service'
@@ -8,8 +8,8 @@ import * as tokenService from '../../services/token.service'
 import * as userService from '../../services/user.service'
 import * as authValidation from '../../validations/auth.validation'
 
-export const register: Handler<Environment> = async (c) => {
-  const config = getConfig(c.env)
+export const register: Handler = async (c) => {
+  const config = getConfig(env(c))
   const bodyParse = await c.req.json()
   const body = await authValidation.register.parseAsync(bodyParse)
   const user = await authService.register(body)
@@ -17,8 +17,8 @@ export const register: Handler<Environment> = async (c) => {
   return c.json({ user, tokens }, httpStatus.CREATED)
 }
 
-export const login: Handler<Environment> = async (c) => {
-  const config = getConfig(c.env)
+export const login: Handler = async (c) => {
+  const config = getConfig(env(c))
   const bodyParse = await c.req.json()
   const { email, password } = authValidation.login.parse(bodyParse)
   const user = await authService.loginUserWithEmailAndPassword(email, password)
@@ -26,17 +26,17 @@ export const login: Handler<Environment> = async (c) => {
   return c.json({ user, tokens }, httpStatus.OK)
 }
 
-export const refreshTokens: Handler<Environment> = async (c) => {
-  const config = getConfig(c.env)
+export const refreshTokens: Handler = async (c) => {
+  const config = getConfig(env(c))
   const bodyParse = await c.req.json()
   const { refresh_token } = authValidation.refreshTokens.parse(bodyParse)
   const tokens = await authService.refreshAuth(refresh_token, config)
   return c.json({ ...tokens }, httpStatus.OK)
 }
 
-export const forgotPassword: Handler<Environment> = async (c) => {
+export const forgotPassword: Handler = async (c) => {
   const bodyParse = await c.req.json()
-  const config = getConfig(c.env)
+  const config = getConfig(env(c))
   const { email } = authValidation.forgotPassword.parse(bodyParse)
   const user = await userService.getUserByEmail(email)
   // Don't let bad actors know if the email is registered by throwing if the user exists
@@ -52,10 +52,10 @@ export const forgotPassword: Handler<Environment> = async (c) => {
   return c.body(null)
 }
 
-export const resetPassword: Handler<Environment> = async (c) => {
+export const resetPassword: Handler = async (c) => {
   const queryParse = c.req.query()
   const bodyParse = await c.req.json()
-  const config = getConfig(c.env)
+  const config = getConfig(env(c))
   const { query, body } = await authValidation.resetPassword.parseAsync({
     query: queryParse,
     body: bodyParse
@@ -65,8 +65,8 @@ export const resetPassword: Handler<Environment> = async (c) => {
   return c.body(null)
 }
 
-export const sendVerificationEmail: Handler<Environment> = async (c) => {
-  const config = getConfig(c.env)
+export const sendVerificationEmail: Handler = async (c) => {
+  const config = getConfig(env(c))
   const payload = c.get('payload')
   const userId = Number(payload.sub)
   // Don't let bad actors know if the email is registered by returning an error if the email
@@ -87,8 +87,8 @@ export const sendVerificationEmail: Handler<Environment> = async (c) => {
   return c.body(null)
 }
 
-export const verifyEmail: Handler<Environment> = async (c) => {
-  const config = getConfig(c.env)
+export const verifyEmail: Handler = async (c) => {
+  const config = getConfig(env(c))
   const queryParse = c.req.query()
   const { token } = authValidation.verifyEmail.parse(queryParse)
   await authService.verifyEmail(token, config)
@@ -96,7 +96,7 @@ export const verifyEmail: Handler<Environment> = async (c) => {
   return c.body(null)
 }
 
-export const getAuthorisations: Handler<Environment> = async (c) => {
+export const getAuthorisations: Handler = async (c) => {
   const payload = c.get('payload')
   const userId = Number(payload.sub)
   const authorisations = await userService.getAuthorisations(userId)

@@ -1,10 +1,10 @@
 import { getSentry } from '@hono/sentry'
 import type { ErrorHandler } from 'hono'
+import { env } from 'hono/adapter'
 import { type StatusCode } from 'hono/utils/http-status'
 import httpStatus from 'http-status'
 import type { Toucan } from 'toucan-js'
 import { ZodError } from 'zod'
-import { type Environment } from '../../bindings'
 import { ApiError } from '../utils/ApiError'
 import { generateZodErrorMessage } from '../utils/zod'
 import { logger } from '@/utils/logger'
@@ -37,20 +37,22 @@ export const errorConverter = (err: unknown, sentry: Toucan): ApiError => {
   return error as ApiError
 }
 
-export const errorHandler: ErrorHandler<Environment> = async (err, c) => {
+export const errorHandler: ErrorHandler = async (err, c) => {
   // Can't load config in case error is inside config so load env here and default
   // to highest obscurity aka production if env is not set
-  const env = c.env.ENV || 'production'
+  const environment = env(c).ENV || 'production'
   const sentry = getSentry(c)
   const error = errorConverter(err, sentry)
-  if (env === 'production' && !error.isOperational) {
+
+  if (environment === 'production' && !error.isOperational) {
     error.statusCode = httpStatus.INTERNAL_SERVER_ERROR
     error.message = httpStatus[httpStatus.INTERNAL_SERVER_ERROR].toString()
   }
+
   const response = {
     code: error.statusCode,
     message: error.message,
-    ...(env === 'development' && { stack: err.stack })
+    ...(environment === 'development' && { stack: err.stack })
   }
   delete c.error // Don't pass to sentry middleware as it is either logged or already handled
   return c.json(response, error.statusCode as StatusCode)

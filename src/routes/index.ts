@@ -11,5 +11,9 @@ export const defaultRoutes = [
   {
     path: `/${base_path}/users`,
     route: userRoute
+  },
+  {
+    path: `/${base_path}/health`,
+    route: userRoute
   }
 ]
